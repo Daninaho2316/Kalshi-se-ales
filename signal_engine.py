@@ -133,7 +133,7 @@ def contract_prices(market: dict):
 
 def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, roi):
     activo = series.replace("KX", "").replace("15M", "")
-    direccion = "SUBIR (YES)" if lado == "yes" else "BAJAR (NO)"
+    direccion = "UP" if lado == "yes" else "DOWN"
     texto = (
         f"<b>SEÑAL KALSHI — {activo}</b>\n"
         f"Mercado: {ticker}\n"
@@ -150,7 +150,7 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
 
 def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, underlying_price):
     activo = series.replace("KX", "").replace("15M", "")
-    direccion = "SUBIR (YES)" if lado == "yes" else "BAJAR (NO)"
+    direccion = "UP" if lado == "yes" else "DOWN"
     objetivo = int(round(entry_price * 1.10))
     texto = (
         f"<b>ENTRADA KALSHI — {activo}</b>\n"
