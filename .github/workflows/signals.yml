@@ -36,12 +36,6 @@ jobs:
           print('Clave privada valida y cargada correctamente.')
           "
 
-      - name: DIAGNOSTICO puntual de precios del contrato
-        env:
-          KALSHI_KEY_ID: ${{ secrets.KALSHI_KEY_ID }}
-          KALSHI_PRIVATE_KEY_PATH: kalshi_private_key.pem
-        run: python3 debug_api.py
-
       - name: Correr motor de señales
         env:
           KALSHI_KEY_ID: ${{ secrets.KALSHI_KEY_ID }}

@@ -100,13 +100,26 @@ def get_active_market(client: KalshiClient, series_ticker: str):
     return markets[0]
 
 
+def _to_cents(dollars_str):
+    """Convierte un precio en formato '0.1300' (dolares) a centavos enteros (13)."""
+    if dollars_str is None:
+        return None
+    try:
+        value = float(dollars_str)
+    except (TypeError, ValueError):
+        return None
+    return int(round(value * 100))
+
+
 def contract_prices(market: dict):
-    """Devuelve (yes_bid, yes_ask, no_bid, no_ask) en centavos, con respaldo
-    si la API no trae algun campo (YES + NO = 100 centavos siempre)."""
-    yes_bid = market.get("yes_bid")
-    yes_ask = market.get("yes_ask")
-    no_bid = market.get("no_bid")
-    no_ask = market.get("no_ask")
+    """Devuelve (yes_bid, yes_ask, no_bid, no_ask) en centavos. Kalshi manda
+    estos precios como strings en dolares (ej. 'yes_bid_dollars': '0.1300'),
+    no como enteros en centavos; con respaldo si falta algun campo
+    (YES + NO = 100 centavos siempre)."""
+    yes_bid = _to_cents(market.get("yes_bid_dollars"))
+    yes_ask = _to_cents(market.get("yes_ask_dollars"))
+    no_bid = _to_cents(market.get("no_bid_dollars"))
+    no_ask = _to_cents(market.get("no_ask_dollars"))
     if no_bid is None and yes_ask is not None:
         no_bid = 100 - yes_ask
     if no_ask is None and yes_bid is not None:
@@ -220,7 +233,7 @@ def poll_once(client, state, bot_token, chat_id):
             side = position["side"]
             entry_price = position["entry_price"]
             current_sell = yes_bid if side == "yes" else no_bid
-            if entry_price and current_sell is not None:
+            if entry_price is not None and current_sell is not None and entry_price > 0:
                 roi = (current_sell - entry_price) / entry_price
                 if roi >= ROI_TARGET:
                     send_signal(
