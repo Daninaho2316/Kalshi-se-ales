@@ -26,7 +26,14 @@ jobs:
 
       - name: Escribir clave privada desde secret
         run: |
-          echo "${{ secrets.KALSHI_PRIVATE_KEY }}" > kalshi_private_key.pem
+          printf '%s' "${{ secrets.KALSHI_PRIVATE_KEY }}" | tr -d '\r' > kalshi_private_key.pem
+          echo "" >> kalshi_private_key.pem
+          python3 -c "
+          from cryptography.hazmat.primitives import serialization
+          with open('kalshi_private_key.pem', 'rb') as f:
+              serialization.load_pem_private_key(f.read(), password=None)
+          print('Clave privada valida y cargada correctamente.')
+          "
 
       - name: Correr motor de señales
         env:
