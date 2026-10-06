@@ -1,5 +1,5 @@
 {
-  "momentum": {},
-  "sent_signals": {},
-  "pending_results": {}
+  "underlying_history": {},
+  "current_ticker": {},
+  "positions": {}
 }

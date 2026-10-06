@@ -1,1 +1,1 @@
-timestamp_utc,market_ticker,series,direction,price_at_signal,strike,pct_diff,minutes_left,resultado
+timestamp_utc,market_ticker,series,evento,lado,precio_entrada_c,precio_actual_c,roi_pct,activo_en_entrada,activo_ahora
