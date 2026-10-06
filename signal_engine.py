@@ -55,6 +55,8 @@ MOMENTUM_THRESHOLD = {
 }
 
 ROI_TARGET = 0.10          # 10% de ganancia sobre el precio de entrada
+MAX_ENTRY_PRICE = 90       # no entrar si el precio ya esta tan alto que un 10% es matematicamente
+                           # imposible (el contrato nunca pasa de 99-100c); 90c*1.10=99c, el limite exacto
 HISTORY_WINDOW = 6         # lecturas del activo que se guardan para medir el movimiento (~60-70s)
 POLL_SECONDS = 12          # pausa entre lecturas dentro de una misma corrida
 RUN_SECONDS = 20700         # ~5h45min: casi todo el limite de 6h de un job de GitHub Actions. Al terminar, el propio workflow se vuelve a lanzar (ver signals.yml), asi el bot queda vigilando casi sin pausas en vez de depender de que el cron de GitHub despierte a tiempo (confirmado: a veces tarda 20-25 min en vez de 5).
@@ -230,7 +232,7 @@ def poll_once(client, state, bot_token, chat_id):
                     pct_move = (hist[-1] - base) / base
                     threshold = MOMENTUM_THRESHOLD.get(series, 0.0005)
                     if abs(pct_move) >= threshold:
-                        if pct_move > 0 and yes_ask is not None:
+                        if pct_move > 0 and yes_ask is not None and yes_ask <= MAX_ENTRY_PRICE:
                             state["positions"][ticker] = {
                                 "side": "yes",
                                 "entry_price": yes_ask,
@@ -249,7 +251,7 @@ def poll_once(client, state, bot_token, chat_id):
                                 "precio_entrada_c": yes_ask, "precio_actual_c": "", "roi_pct": "",
                                 "activo_en_entrada": underlying_price, "activo_ahora": "",
                             })
-                        elif pct_move < 0 and no_ask is not None:
+                        elif pct_move < 0 and no_ask is not None and no_ask <= MAX_ENTRY_PRICE:
                             state["positions"][ticker] = {
                                 "side": "no",
                                 "entry_price": no_ask,
