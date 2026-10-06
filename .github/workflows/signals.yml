@@ -1,0 +1,50 @@
+name: Kalshi Signal Bot
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # cada 5 min (minimo practico confiable en GitHub Actions)
+  workflow_dispatch: {}      # permite correrlo manualmente desde la pestaña Actions
+
+permissions:
+  contents: write
+
+jobs:
+  check-signals:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: kalshi-signals
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Escribir clave privada desde secret
+        run: |
+          echo "${{ secrets.KALSHI_PRIVATE_KEY }}" > kalshi_private_key.pem
+
+      - name: Correr motor de señales
+        env:
+          KALSHI_KEY_ID: ${{ secrets.KALSHI_KEY_ID }}
+          KALSHI_PRIVATE_KEY_PATH: kalshi_private_key.pem
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 signal_engine.py
+
+      - name: Borrar clave privada temporal
+        if: always()
+        run: rm -f kalshi_private_key.pem
+
+      - name: Guardar estado y logs
+        if: always()
+        run: |
+          git config user.name "kalshi-signal-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add state.json logs/signals.csv || true
+          git diff --cached --quiet || git commit -m "actualiza estado y señales [skip ci]"
+          git push || true

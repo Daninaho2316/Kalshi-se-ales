@@ -1,0 +1,5 @@
+config/secrets.json
+*.pem
+*.key
+__pycache__/
+.DS_Store
