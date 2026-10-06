@@ -36,13 +36,6 @@ jobs:
           print('Clave privada valida y cargada correctamente.')
           "
 
-      - name: PRUEBA temporal de Telegram
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          python3 telegram_notify.py "$TELEGRAM_BOT_TOKEN" "$TELEGRAM_CHAT_ID" "Prueba del bot Kalshi: si ves este mensaje, la conexion a Telegram funciona correctamente."
-
       - name: Correr motor de señales
         env:
           KALSHI_KEY_ID: ${{ secrets.KALSHI_KEY_ID }}
