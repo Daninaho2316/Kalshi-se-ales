@@ -23,6 +23,7 @@ Nunca imprime ni transmite claves/secretos.
 import csv
 import json
 import os
+import subprocess
 import time
 from datetime import datetime, timezone
 
@@ -34,7 +35,7 @@ LOG_PATH = "logs/signals.csv"
 CSV_FIELDS = [
     "timestamp_utc", "market_ticker", "series", "evento", "lado",
     "precio_entrada_c", "precio_actual_c", "roi_pct",
-    "activo_en_entrada", "activo_ahora",
+    "activo_en_entrada", "activo_ahora", "segundos_restantes_cierre",
 ]
 
 # Series de Kalshi a monitorear (15 min, sube/baja) -> indice CF Benchmarks
@@ -57,8 +58,24 @@ MOMENTUM_THRESHOLD = {
 ROI_TARGET = 0.10          # 10% de ganancia sobre el precio de entrada
 MAX_ENTRY_PRICE = 90       # no entrar si el precio ya esta tan alto que un 10% es matematicamente
                            # imposible (el contrato nunca pasa de 99-100c); 90c*1.10=99c, el limite exacto
+
+# No abrir una entrada nueva si al ciclo de 15 min le quedan menos de esto.
+# Motivo (visto en los datos reales): varias perdidas fueron entradas tardias
+# que no tuvieron tiempo de llegar al 10% antes de que cerrara el ciclo — eso
+# es exactamente lo que el usuario no quiere (se convertiria en apuesta al
+# quedarse esperando el cierre). Mejor no entrar que forzar una entrada sin
+# margen para salir a tiempo.
+MIN_TIME_TO_CLOSE_SECONDS = 180  # 3 minutos
 HISTORY_WINDOW = 6         # lecturas del activo que se guardan para medir el movimiento (~60-70s)
 POLL_SECONDS = 12          # pausa entre lecturas dentro de una misma corrida
+
+# Cada cuanto se hace un "git push" de respaldo aunque no haya pasado nada
+# nuevo (ademas del push inmediato que se hace apenas se registra una
+# entrada/salida/cierre). Antes el log solo se subia a GitHub al terminar
+# toda la corrida larga (~5h45min), asi que el rastreador se quedaba horas
+# desactualizado aun cuando Telegram ya habia avisado la señal. Con esto el
+# archivo logs/signals.csv en GitHub queda al dia en minutos, no en horas.
+PUSH_INTERVAL_SECONDS = 180  # respaldo cada 3 min aunque no haya señales nuevas
 RUN_SECONDS = 20700         # ~5h45min: casi todo el limite de 6h de un job de GitHub Actions. Al terminar, el propio workflow se vuelve a lanzar (ver signals.yml), asi el bot queda vigilando casi sin pausas en vez de depender de que el cron de GitHub despierte a tiempo (confirmado: a veces tarda 20-25 min en vez de 5).
 
 
@@ -87,10 +104,15 @@ def ensure_log_header():
             csv.writer(f).writerow(CSV_FIELDS)
 
 
+_LOG_EVENT_COUNT = 0  # se incrementa cada vez que se escribe una fila nueva en el log
+
+
 def log_row(row: dict):
+    global _LOG_EVENT_COUNT
     ensure_log_header()
     with open(LOG_PATH, "a", newline="") as f:
         csv.writer(f).writerow([row.get(k, "") for k in CSV_FIELDS])
+    _LOG_EVENT_COUNT += 1
 
 
 def get_active_market(client: KalshiClient, series_ticker: str):
@@ -111,6 +133,22 @@ def _to_cents(dollars_str):
     except (TypeError, ValueError):
         return None
     return int(round(value * 100))
+
+
+def seconds_until_close(market: dict):
+    """Segundos que faltan para que cierre el ciclo de 15 min. None si no se
+    puede leer/parsear close_time (en ese caso no se bloquea la entrada)."""
+    close_time = market.get("close_time")
+    if not close_time:
+        return None
+    try:
+        value = close_time.replace("Z", "+00:00")
+        close_dt = datetime.fromisoformat(value)
+        if close_dt.tzinfo is None:
+            close_dt = close_dt.replace(tzinfo=timezone.utc)
+        return (close_dt - datetime.now(timezone.utc)).total_seconds()
+    except Exception:
+        return None
 
 
 def contract_prices(market: dict):
@@ -189,6 +227,28 @@ def archive_unsignaled(state, series, old_ticker):
         })
 
 
+def git_sync(reason: str):
+    """Guarda (git add/commit/push) el estado y el log de señales AHORA
+    mismo, en vez de esperar a que termine toda la corrida larga. Si algo
+    falla (red, permisos, lo que sea) solo avisa por consola y sigue — nunca
+    debe tumbar el bot."""
+    try:
+        subprocess.run(["git", "config", "user.name", "kalshi-signal-bot"], check=False)
+        subprocess.run(["git", "config", "user.email", "actions@users.noreply.github.com"], check=False)
+        subprocess.run(["git", "add", STATE_PATH, LOG_PATH], check=True)
+        nothing_to_commit = subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode == 0
+        if nothing_to_commit:
+            return
+        subprocess.run(
+            ["git", "commit", "-m", f"actualiza estado y señales ({reason}) [skip ci]"],
+            check=True,
+        )
+        subprocess.run(["git", "push"], check=True)
+        print(f"[OK] git push realizado ({reason})")
+    except Exception as e:
+        print(f"[WARN] No se pudo sincronizar con git ({reason}): {e}")
+
+
 def poll_once(client, state, bot_token, chat_id):
     for series, index_id in SERIES_INDEX.items():
         try:
@@ -224,9 +284,14 @@ def poll_once(client, state, bot_token, chat_id):
 
         yes_bid, yes_ask, no_bid, no_ask = contract_prices(market)
         position = state["positions"].get(ticker)
+        remaining_s = seconds_until_close(market)
 
         if position is None:
-            if len(hist) >= 2:
+            # Si al ciclo le queda muy poco tiempo, no abrir una entrada nueva:
+            # no alcanzaria a llegar al 10% y se saldria sin señal de salida
+            # (exactamente la "apuesta" que se quiere evitar).
+            too_late = remaining_s is not None and remaining_s < MIN_TIME_TO_CLOSE_SECONDS
+            if len(hist) >= 2 and not too_late:
                 base = hist[0]
                 if base:
                     pct_move = (hist[-1] - base) / base
@@ -250,6 +315,7 @@ def poll_once(client, state, bot_token, chat_id):
                                 "evento": "entrada_detectada", "lado": "yes",
                                 "precio_entrada_c": yes_ask, "precio_actual_c": "", "roi_pct": "",
                                 "activo_en_entrada": underlying_price, "activo_ahora": "",
+                                "segundos_restantes_cierre": remaining_s,
                             })
                         elif pct_move < 0 and no_ask is not None and no_ask <= MAX_ENTRY_PRICE:
                             state["positions"][ticker] = {
@@ -269,6 +335,7 @@ def poll_once(client, state, bot_token, chat_id):
                                 "evento": "entrada_detectada", "lado": "no",
                                 "precio_entrada_c": no_ask, "precio_actual_c": "", "roi_pct": "",
                                 "activo_en_entrada": underlying_price, "activo_ahora": "",
+                                "segundos_restantes_cierre": remaining_s,
                             })
         elif not position.get("signaled"):
             side = position["side"]
@@ -308,20 +375,34 @@ def main():
     ensure_log_header()
 
     start = time.monotonic()
+    last_push = start
     iteration = 0
     while time.monotonic() - start < RUN_SECONDS:
         iteration += 1
+        events_before = _LOG_EVENT_COUNT
         try:
             poll_once(client, state, bot_token, chat_id)
         except Exception as e:
             print(f"[WARN] Error en iteracion {iteration}: {e}")
         save_state(state)
-        elapsed = time.monotonic() - start
+
+        now = time.monotonic()
+        if _LOG_EVENT_COUNT != events_before:
+            # hubo una entrada/salida/cierre de ciclo -> subirlo a GitHub YA,
+            # no esperar a que termine toda la corrida larga.
+            git_sync("señal nueva")
+            last_push = now
+        elif now - last_push >= PUSH_INTERVAL_SECONDS:
+            git_sync("respaldo periodico")
+            last_push = now
+
+        elapsed = now - start
         remaining = RUN_SECONDS - elapsed
         if remaining <= 0:
             break
         time.sleep(min(POLL_SECONDS, remaining))
 
+    git_sync("fin de la corrida")
     print(f"Corrida terminada: {iteration} lecturas.")
 
 
