@@ -24,14 +24,15 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
-      - name: Escribir clave privada desde secret
+      - name: Escribir clave privada desde secret (base64)
         run: |
-          printf '%s' "${{ secrets.KALSHI_PRIVATE_KEY }}" | tr -d '\r' > kalshi_private_key.pem
-          echo "" >> kalshi_private_key.pem
+          echo "${{ secrets.KALSHI_PRIVATE_KEY }}" | base64 -d > kalshi_private_key.pem
           python3 -c "
           from cryptography.hazmat.primitives import serialization
           with open('kalshi_private_key.pem', 'rb') as f:
-              serialization.load_pem_private_key(f.read(), password=None)
+              data = f.read()
+          print('bytes reconstruidos:', len(data))
+          key = serialization.load_pem_private_key(data, password=None)
           print('Clave privada valida y cargada correctamente.')
           "
 
