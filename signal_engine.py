@@ -66,6 +66,16 @@ MAX_ENTRY_PRICE = 90       # no entrar si el precio ya esta tan alto que un 10% 
 # quedarse esperando el cierre). Mejor no entrar que forzar una entrada sin
 # margen para salir a tiempo.
 MIN_TIME_TO_CLOSE_SECONDS = 180  # 3 minutos
+
+# Antes, si el ciclo cerraba sin llegar al 10%, la posicion se quedaba abierta
+# y se perdia el 100% de lo invertido (un perdida = como 10 ganadas). Para que
+# el negocio tenga sentido, ahora SIEMPRE se sale de la posicion antes de que
+# cierre el ciclo, por una de tres razones: se llego al 10% (ganancia), se
+# cayo demasiado (se corta la perdida aqui en vez de dejarla llegar a -100%),
+# o se esta acabando el tiempo (se cierra YA al precio que sea, nunca se deja
+# vencer sin vender).
+STOP_LOSS_PCT = 0.30       # cortar la perdida si el contrato cae 30% desde la entrada
+FORCE_EXIT_SECONDS = 45    # si quedan <45s para el cierre y sigue abierta, cerrarla YA
 HISTORY_WINDOW = 6         # lecturas del activo que se guardan para medir el movimiento (~60-70s)
 POLL_SECONDS = 12          # pausa entre lecturas dentro de una misma corrida
 
@@ -206,6 +216,42 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
         print(f"[WARN] No se pudo enviar Telegram (entrada): {e}")
 
 
+def send_stop_loss_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, roi):
+    activo = series.replace("KX", "").replace("15M", "")
+    direccion = "SUBE" if lado == "yes" else "BAJA"
+    texto = (
+        f"<b>CORTE DE PÉRDIDA — {activo}</b>\n"
+        f"Mercado: {ticker}\n"
+        f"Lado: {direccion}\n"
+        f"Precio de ENTRADA: <b>{entrada}¢</b>\n"
+        f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
+        f"Pérdida: <b>{roi*100:.1f}%</b>\n"
+        f"Vender/cerrar YA para limitar la pérdida."
+    )
+    try:
+        send_message(bot_token, chat_id, texto)
+    except Exception as e:
+        print(f"[WARN] No se pudo enviar Telegram (corte de perdida): {e}")
+
+
+def send_forced_exit_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, roi):
+    activo = series.replace("KX", "").replace("15M", "")
+    direccion = "SUBE" if lado == "yes" else "BAJA"
+    texto = (
+        f"<b>CIERRE OBLIGATORIO — {activo}</b>\n"
+        f"Mercado: {ticker}\n"
+        f"Lado: {direccion}\n"
+        f"Precio de ENTRADA: <b>{entrada}¢</b>\n"
+        f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
+        f"Resultado: <b>{roi*100:+.1f}%</b>\n"
+        f"Se acaba el tiempo del ciclo — vender/cerrar YA, no dejar que venza."
+    )
+    try:
+        send_message(bot_token, chat_id, texto)
+    except Exception as e:
+        print(f"[WARN] No se pudo enviar Telegram (cierre forzado): {e}")
+
+
 def archive_unsignaled(state, series, old_ticker):
     """Si cambia el ticker del ciclo (cerro el mercado de 15 min) y habia una
     posicion abierta que nunca llego al 10%, se registra para el historial
@@ -342,23 +388,53 @@ def poll_once(client, state, bot_token, chat_id):
             current_sell = yes_bid if side == "yes" else no_bid
             if entry_price is not None and current_sell is not None and entry_price > 0:
                 roi = (current_sell - entry_price) / entry_price
+
                 if roi >= ROI_TARGET:
+                    # objetivo de ganancia alcanzado
                     send_signal(
                         bot_token, chat_id,
                         series=series, ticker=ticker, lado=side,
                         entrada=entry_price, actual=current_sell, roi=roi,
                     )
                     log_row({
-                        "timestamp_utc": now_iso(),
-                        "market_ticker": ticker,
-                        "series": series,
-                        "evento": "señal_venta",
-                        "lado": side,
-                        "precio_entrada_c": entry_price,
-                        "precio_actual_c": current_sell,
+                        "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
+                        "evento": "señal_venta", "lado": side,
+                        "precio_entrada_c": entry_price, "precio_actual_c": current_sell,
                         "roi_pct": round(roi * 100, 2),
-                        "activo_en_entrada": position["underlying_entry"],
-                        "activo_ahora": underlying_price,
+                        "activo_en_entrada": position["underlying_entry"], "activo_ahora": underlying_price,
+                    })
+                    position["signaled"] = True
+
+                elif roi <= -STOP_LOSS_PCT:
+                    # se cayo demasiado -> cortar la perdida aqui, nunca dejarla llegar a -100%
+                    send_stop_loss_signal(
+                        bot_token, chat_id,
+                        series=series, ticker=ticker, lado=side,
+                        entrada=entry_price, actual=current_sell, roi=roi,
+                    )
+                    log_row({
+                        "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
+                        "evento": "señal_corte_perdida", "lado": side,
+                        "precio_entrada_c": entry_price, "precio_actual_c": current_sell,
+                        "roi_pct": round(roi * 100, 2),
+                        "activo_en_entrada": position["underlying_entry"], "activo_ahora": underlying_price,
+                    })
+                    position["signaled"] = True
+
+                elif remaining_s is not None and remaining_s <= FORCE_EXIT_SECONDS:
+                    # se acaba el tiempo del ciclo -> cerrar YA al precio que sea,
+                    # nunca dejar la posicion sin vender (eso seria la "apuesta" que no se quiere)
+                    send_forced_exit_signal(
+                        bot_token, chat_id,
+                        series=series, ticker=ticker, lado=side,
+                        entrada=entry_price, actual=current_sell, roi=roi,
+                    )
+                    log_row({
+                        "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
+                        "evento": "cierre_forzado", "lado": side,
+                        "precio_entrada_c": entry_price, "precio_actual_c": current_sell,
+                        "roi_pct": round(roi * 100, 2),
+                        "activo_en_entrada": position["underlying_entry"], "activo_ahora": underlying_price,
                     })
                     position["signaled"] = True
 
