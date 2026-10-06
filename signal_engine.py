@@ -148,6 +148,24 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
         print(f"[WARN] No se pudo enviar Telegram: {e}")
 
 
+def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, underlying_price):
+    activo = series.replace("KX", "").replace("15M", "")
+    direccion = "SUBIR (YES)" if lado == "yes" else "BAJAR (NO)"
+    objetivo = int(round(entry_price * 1.10))
+    texto = (
+        f"<b>ENTRADA KALSHI — {activo}</b>\n"
+        f"Mercado: {ticker}\n"
+        f"Lado: {direccion}\n"
+        f"Precio de entrada ahora mismo: <b>{entry_price}¢</b>\n"
+        f"Precio del activo: {underlying_price}\n"
+        f"Te aviso de nuevo cuando llegue a ~{objetivo}¢ (10% de ganancia)."
+    )
+    try:
+        send_message(bot_token, chat_id, texto)
+    except Exception as e:
+        print(f"[WARN] No se pudo enviar Telegram (entrada): {e}")
+
+
 def archive_unsignaled(state, series, old_ticker):
     """Si cambia el ticker del ciclo (cerro el mercado de 15 min) y habia una
     posicion abierta que nunca llego al 10%, se registra para el historial
@@ -220,6 +238,16 @@ def poll_once(client, state, bot_token, chat_id):
                                 "series": series,
                                 "signaled": False,
                             }
+                            send_entry_signal(
+                                bot_token, chat_id, series=series, ticker=ticker,
+                                lado="yes", entry_price=yes_ask, underlying_price=underlying_price,
+                            )
+                            log_row({
+                                "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
+                                "evento": "entrada_detectada", "lado": "yes",
+                                "precio_entrada_c": yes_ask, "precio_actual_c": "", "roi_pct": "",
+                                "activo_en_entrada": underlying_price, "activo_ahora": "",
+                            })
                         elif pct_move < 0 and no_ask is not None:
                             state["positions"][ticker] = {
                                 "side": "no",
@@ -229,6 +257,16 @@ def poll_once(client, state, bot_token, chat_id):
                                 "series": series,
                                 "signaled": False,
                             }
+                            send_entry_signal(
+                                bot_token, chat_id, series=series, ticker=ticker,
+                                lado="no", entry_price=no_ask, underlying_price=underlying_price,
+                            )
+                            log_row({
+                                "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
+                                "evento": "entrada_detectada", "lado": "no",
+                                "precio_entrada_c": no_ask, "precio_actual_c": "", "roi_pct": "",
+                                "activo_en_entrada": underlying_price, "activo_ahora": "",
+                            })
         elif not position.get("signaled"):
             side = position["side"]
             entry_price = position["entry_price"]
