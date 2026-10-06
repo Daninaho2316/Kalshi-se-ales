@@ -159,7 +159,10 @@ def poll_once(client, state, bot_token, chat_id):
     for series, index_id in SERIES_INDEX.items():
         try:
             cf = client.cfbenchmarks_value(index_id)
-            underlying_price = float(cf.get("value") or cf.get("values", [{}])[0].get("value"))
+            payload = cf.get("data", {}).get("payload", [])
+            if not payload:
+                raise ValueError("payload vacio en la respuesta de CF Benchmarks")
+            underlying_price = float(payload[-1]["value"])
         except Exception as e:
             print(f"[WARN] {series}: no se pudo leer precio del activo ({e})")
             continue
