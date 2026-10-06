@@ -1,76 +1,38 @@
 {
   "underlying_history": {
     "KXBTC15M": [
-      85525.06,
-      85513.18,
-      85508.06,
-      85507.75,
-      85517.5,
-      85511.53
+      85484.38,
+      85515.17,
+      85513.76,
+      85518.97
     ],
     "KXETH15M": [
-      2688.57,
-      2688.36,
-      2688.05,
-      2688.13,
-      2688.27,
-      2688.1
+      2688.16
     ],
     "KXSOL15M": [
-      120.66,
-      120.62,
-      120.61,
-      120.61,
-      120.6,
-      120.59
+      120.54,
+      120.54,
+      120.54
     ],
     "KXXRP15M": [
-      1.50141,
-      1.5011,
-      1.50128,
-      1.5014,
-      1.50144,
-      1.50079
+      1.50099,
+      1.50101
     ]
   },
   "current_ticker": {
-    "KXBTC15M": "KXBTC15M-26OCT061545-45",
-    "KXETH15M": "KXETH15M-26OCT061545-45",
-    "KXSOL15M": "KXSOL15M-26OCT061545-45",
-    "KXXRP15M": "KXXRP15M-26OCT061545-45"
+    "KXBTC15M": "KXBTC15M-26OCT061600-00",
+    "KXETH15M": "KXETH15M-26OCT061600-00",
+    "KXSOL15M": "KXSOL15M-26OCT061600-00",
+    "KXXRP15M": "KXXRP15M-26OCT061600-00"
   },
   "positions": {
-    "KXBTC15M-26OCT061545-45": {
-      "side": "yes",
-      "entry_price": 72,
-      "entry_time": "2026-10-06T19:31:47Z",
-      "underlying_entry": 85559.65,
-      "series": "KXBTC15M",
-      "signaled": true
-    },
-    "KXSOL15M-26OCT061545-45": {
+    "KXBTC15M-26OCT061600-00": {
       "side": "yes",
       "entry_price": 65,
-      "entry_time": "2026-10-06T19:31:49Z",
-      "underlying_entry": 120.63,
-      "series": "KXSOL15M",
-      "signaled": true
-    },
-    "KXETH15M-26OCT061545-45": {
-      "side": "yes",
-      "entry_price": 86,
-      "entry_time": "2026-10-06T19:32:11Z",
-      "underlying_entry": 2689.46,
-      "series": "KXETH15M",
-      "signaled": true
-    },
-    "KXXRP15M-26OCT061545-45": {
-      "side": "yes",
-      "entry_price": 82,
-      "entry_time": "2026-10-06T19:32:13Z",
-      "underlying_entry": 1.5014,
-      "series": "KXXRP15M",
-      "signaled": true
+      "entry_time": "2026-10-06T19:45:34Z",
+      "underlying_entry": 85518.97,
+      "series": "KXBTC15M",
+      "signaled": false
     }
   }
 }
