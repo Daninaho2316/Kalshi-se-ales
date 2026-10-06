@@ -22,6 +22,7 @@ Nunca imprime ni transmite claves/secretos.
 """
 import csv
 import json
+import math
 import os
 import subprocess
 import time
@@ -58,6 +59,16 @@ MOMENTUM_THRESHOLD = {
 ROI_TARGET = 0.10          # 10% de ganancia sobre el precio de entrada
 MAX_ENTRY_PRICE = 90       # no entrar si el precio ya esta tan alto que un 10% es matematicamente
                            # imposible (el contrato nunca pasa de 99-100c); 90c*1.10=99c, el limite exacto
+
+# No entrar si el precio ya esta tan BAJO que el mercado practicamente ya
+# descarto ese lado (ej. 3c = el mercado le da ~3% de probabilidad). A esos
+# precios cualquier moneda de 1 centavo de diferencia es un porcentaje
+# enorme (de 3c a 2c es "solo" 1 centavo pero -33%), asi que el 10% de
+# ganancia y el -30% de corte de perdida se disparan por pura ruidosidad del
+# precio, no por un movimiento real — y es jugar contra un consenso de
+# mercado muy fuerte. Visto en datos reales: entrada en ETH a 3c, corte de
+# perdida casi inmediato a 2c.
+MIN_ENTRY_PRICE = 10
 
 # No abrir una entrada nueva si al ciclo de 15 min le quedan menos de esto.
 # Motivo (visto en los datos reales): varias perdidas fueron entradas tardias
@@ -202,7 +213,7 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
 def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, underlying_price):
     activo = series.replace("KX", "").replace("15M", "")
     direccion = "SUBE" if lado == "yes" else "BAJA"
-    objetivo = min(99, int(round(entry_price * 1.10)))
+    objetivo = min(99, max(entry_price + 1, math.ceil(entry_price * 1.10)))
     texto = (
         f"<b>ENTRADA KALSHI — {activo}</b>\n"
         f"Mercado: {ticker}\n"
@@ -342,7 +353,7 @@ def poll_once(client, state, bot_token, chat_id):
                     pct_move = (hist[-1] - base) / base
                     threshold = MOMENTUM_THRESHOLD.get(series, 0.0005)
                     if abs(pct_move) >= threshold:
-                        if pct_move > 0 and yes_ask is not None and yes_ask <= MAX_ENTRY_PRICE:
+                        if pct_move > 0 and yes_ask is not None and MIN_ENTRY_PRICE <= yes_ask <= MAX_ENTRY_PRICE:
                             state["positions"][ticker] = {
                                 "side": "yes",
                                 "entry_price": yes_ask,
@@ -362,7 +373,7 @@ def poll_once(client, state, bot_token, chat_id):
                                 "activo_en_entrada": underlying_price, "activo_ahora": "",
                                 "segundos_restantes_cierre": remaining_s,
                             })
-                        elif pct_move < 0 and no_ask is not None and no_ask <= MAX_ENTRY_PRICE:
+                        elif pct_move < 0 and no_ask is not None and MIN_ENTRY_PRICE <= no_ask <= MAX_ENTRY_PRICE:
                             state["positions"][ticker] = {
                                 "side": "no",
                                 "entry_price": no_ask,
