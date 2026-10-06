@@ -2,15 +2,17 @@ name: Kalshi Signal Bot
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # cada 5 min (minimo practico confiable en GitHub Actions)
-  workflow_dispatch: {}      # permite correrlo manualmente desde la pestaña Actions
+    - cron: "0 * * * *"    # red de seguridad cada hora, por si la cadena se corta
+  workflow_dispatch: {}     # permite correrlo manualmente desde la pestaña Actions
 
 permissions:
   contents: write
+  actions: write           # necesario para que el propio workflow dispare la siguiente corrida
 
 jobs:
   check-signals:
     runs-on: ubuntu-latest
+    timeout-minutes: 355
     concurrency:
       group: kalshi-signals
       cancel-in-progress: false
@@ -36,7 +38,7 @@ jobs:
           print('Clave privada valida y cargada correctamente.')
           "
 
-      - name: Correr motor de señales
+      - name: Correr motor de señales (vigilancia casi continua, ~5h45min)
         env:
           KALSHI_KEY_ID: ${{ secrets.KALSHI_KEY_ID }}
           KALSHI_PRIVATE_KEY_PATH: kalshi_private_key.pem
@@ -56,3 +58,13 @@ jobs:
           git add state.json logs/signals.csv || true
           git diff --cached --quiet || git commit -m "actualiza estado y señales [skip ci]"
           git push || true
+
+      - name: Encadenar la siguiente corrida (no esperar al cron de GitHub)
+        if: always()
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/signals.yml/dispatches" \
+            -d '{"ref":"main"}' \
+            -w "encadenado: HTTP %{http_code}\n"

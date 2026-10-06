@@ -57,7 +57,7 @@ MOMENTUM_THRESHOLD = {
 ROI_TARGET = 0.10          # 10% de ganancia sobre el precio de entrada
 HISTORY_WINDOW = 6         # lecturas del activo que se guardan para medir el movimiento (~60-70s)
 POLL_SECONDS = 12          # pausa entre lecturas dentro de una misma corrida
-RUN_SECONDS = 260          # duracion maxima de la corrida (deja margen antes del siguiente cron de 5 min)
+RUN_SECONDS = 25            # VALOR DE PRUEBA TEMPORAL, se restaura a 20700 luego de confirmar el autoencadenado
 
 
 def now_iso():
