@@ -57,7 +57,7 @@ MOMENTUM_THRESHOLD = {
 ROI_TARGET = 0.10          # 10% de ganancia sobre el precio de entrada
 HISTORY_WINDOW = 6         # lecturas del activo que se guardan para medir el movimiento (~60-70s)
 POLL_SECONDS = 12          # pausa entre lecturas dentro de una misma corrida
-RUN_SECONDS = 25            # VALOR DE PRUEBA TEMPORAL, se restaura a 20700 luego de confirmar el autoencadenado
+RUN_SECONDS = 20700         # ~5h45min: casi todo el limite de 6h de un job de GitHub Actions. Al terminar, el propio workflow se vuelve a lanzar (ver signals.yml), asi el bot queda vigilando casi sin pausas en vez de depender de que el cron de GitHub despierte a tiempo (confirmado: a veces tarda 20-25 min en vez de 5).
 
 
 def now_iso():
