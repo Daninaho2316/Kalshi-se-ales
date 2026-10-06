@@ -35,3 +35,4 @@ timestamp_utc,market_ticker,series,evento,lado,precio_entrada_c,precio_actual_c,
 2026-10-06T17:37:26Z,KXSOL15M-26OCT061345-45,KXSOL15M,señal_venta,yes,68,89,30.88,120.6,120.57,
 2026-10-06T17:37:27Z,KXXRP15M-26OCT061345-45,KXXRP15M,señal_venta,yes,60,81,35.0,1.50442,1.50419,
 2026-10-06T17:38:03Z,KXETH15M-26OCT061345-45,KXETH15M,entrada_detectada,yes,72,,,2697.84,,417.367878
+2026-10-06T17:45:31Z,KXETH15M-26OCT061345-45,KXETH15M,ciclo_cerrado_sin_señal,yes,72,,,2697.84,,
