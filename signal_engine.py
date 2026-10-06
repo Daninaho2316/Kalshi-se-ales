@@ -173,9 +173,11 @@ def contract_prices(market: dict):
 
 def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, roi):
     activo = series.replace("KX", "").replace("15M", "")
+    direccion = "SUBE" if lado == "yes" else "BAJA"
     texto = (
         f"<b>SALIDA KALSHI — {activo}</b>\n"
         f"Mercado: {ticker}\n"
+        f"Lado: {direccion}\n"
         f"Precio de ENTRADA: <b>{entrada}¢</b>\n"
         f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
         f"Ganancia sobre lo invertido: <b>{roi*100:.1f}%</b>\n"
@@ -189,10 +191,12 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
 
 def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, underlying_price):
     activo = series.replace("KX", "").replace("15M", "")
+    direccion = "SUBE" if lado == "yes" else "BAJA"
     objetivo = min(99, int(round(entry_price * 1.10)))
     texto = (
         f"<b>ENTRADA KALSHI — {activo}</b>\n"
         f"Mercado: {ticker}\n"
+        f"Lado: {direccion}\n"
         f"Precio de ENTRADA: <b>{entry_price}¢</b>\n"
         f"Precio de SALIDA (objetivo, 10%): <b>{objetivo}¢</b>"
     )
