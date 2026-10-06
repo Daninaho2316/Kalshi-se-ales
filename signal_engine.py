@@ -68,7 +68,8 @@ MAX_ENTRY_PRICE = 90       # no entrar si el precio ya esta tan alto que un 10% 
 # precio, no por un movimiento real — y es jugar contra un consenso de
 # mercado muy fuerte. Visto en datos reales: entrada en ETH a 3c, corte de
 # perdida casi inmediato a 2c.
-MIN_ENTRY_PRICE = 10
+MIN_ENTRY_PRICE = 20   # subido de 10 a 20: con 13c tambien se vio un salto de -69% entre
+                       # una lectura y la siguiente (contrato poco liquido = saltos grandes)
 
 # No abrir una entrada nueva si al ciclo de 15 min le quedan menos de esto.
 # Motivo (visto en los datos reales): varias perdidas fueron entradas tardias
@@ -88,7 +89,8 @@ MIN_TIME_TO_CLOSE_SECONDS = 180  # 3 minutos
 STOP_LOSS_PCT = 0.30       # cortar la perdida si el contrato cae 30% desde la entrada
 FORCE_EXIT_SECONDS = 45    # si quedan <45s para el cierre y sigue abierta, cerrarla YA
 HISTORY_WINDOW = 6         # lecturas del activo que se guardan para medir el movimiento (~60-70s)
-POLL_SECONDS = 12          # pausa entre lecturas dentro de una misma corrida
+POLL_SECONDS = 8           # pausa entre lecturas dentro de una misma corrida (bajado de 12 a 8
+                           # para reaccionar mas rapido al corte de perdida)
 
 # Cada cuanto se hace un "git push" de respaldo aunque no haya pasado nada
 # nuevo (ademas del push inmediato que se hace apenas se registra una
