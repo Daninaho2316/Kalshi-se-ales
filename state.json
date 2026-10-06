@@ -1,76 +1,39 @@
 {
   "underlying_history": {
     "KXBTC15M": [
-      85622.96,
-      85621.29,
-      85621.91,
-      85621.52,
-      85601.25,
-      85586.09
+      85555.37,
+      85555.35,
+      85550.71,
+      85550.35
     ],
     "KXETH15M": [
-      2698.82,
-      2698.69,
-      2698.71,
-      2698.69,
-      2698.04,
-      2697.65
+      2697.04,
+      2696.52,
+      2696.31,
+      2696.3,
+      2696.3,
+      2696.46
     ],
     "KXSOL15M": [
-      121.38,
-      121.4,
-      121.41,
-      121.42,
-      121.36,
-      121.33
+      121.24,
+      121.24,
+      121.24,
+      121.25
     ],
     "KXXRP15M": [
-      1.50107,
-      1.50116,
-      1.50124,
-      1.50122,
-      1.50093,
-      1.50062
+      1.50069,
+      1.50037,
+      1.50013,
+      1.50007,
+      1.50005,
+      1.49995
     ]
   },
   "current_ticker": {
-    "KXBTC15M": "KXBTC15M-26OCT061815-15",
-    "KXETH15M": "KXETH15M-26OCT061815-15",
-    "KXSOL15M": "KXSOL15M-26OCT061815-15",
-    "KXXRP15M": "KXXRP15M-26OCT061815-15"
+    "KXBTC15M": "KXBTC15M-26OCT061830-30",
+    "KXETH15M": "KXETH15M-26OCT061830-30",
+    "KXSOL15M": "KXSOL15M-26OCT061830-30",
+    "KXXRP15M": "KXXRP15M-26OCT061830-30"
   },
-  "positions": {
-    "KXETH15M-26OCT061815-15": {
-      "side": "yes",
-      "entry_price": 63,
-      "entry_time": "2026-10-06T22:03:52Z",
-      "underlying_entry": 2698.84,
-      "series": "KXETH15M",
-      "signaled": true
-    },
-    "KXBTC15M-26OCT061815-15": {
-      "side": "yes",
-      "entry_price": 50,
-      "entry_time": "2026-10-06T22:04:04Z",
-      "underlying_entry": 85624.44,
-      "series": "KXBTC15M",
-      "signaled": true
-    },
-    "KXSOL15M-26OCT061815-15": {
-      "side": "yes",
-      "entry_price": 85,
-      "entry_time": "2026-10-06T22:04:06Z",
-      "underlying_entry": 121.24,
-      "series": "KXSOL15M",
-      "signaled": true
-    },
-    "KXXRP15M-26OCT061815-15": {
-      "side": "yes",
-      "entry_price": 71,
-      "entry_time": "2026-10-06T22:04:07Z",
-      "underlying_entry": 1.50257,
-      "series": "KXXRP15M",
-      "signaled": true
-    }
-  }
+  "positions": {}
 }
