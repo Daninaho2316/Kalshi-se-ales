@@ -135,10 +135,11 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
     activo = series.replace("KX", "").replace("15M", "")
     direccion = "UP" if lado == "yes" else "DOWN"
     texto = (
-        f"<b>SEÑAL KALSHI — {activo}</b>\n"
+        f"<b>SALIDA KALSHI — {activo}</b>\n"
         f"Mercado: {ticker}\n"
         f"Lado: {direccion}\n"
-        f"Entrada: {entrada}¢  →  Ahora: {actual}¢\n"
+        f"Precio de ENTRADA: <b>{entrada}¢</b>\n"
+        f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
         f"Ganancia sobre lo invertido: <b>{roi*100:.1f}%</b>\n"
         f"Vender/cerrar ahora."
     )
@@ -151,14 +152,14 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
 def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, underlying_price):
     activo = series.replace("KX", "").replace("15M", "")
     direccion = "UP" if lado == "yes" else "DOWN"
-    objetivo = int(round(entry_price * 1.10))
+    objetivo = min(99, int(round(entry_price * 1.10)))
     texto = (
         f"<b>ENTRADA KALSHI — {activo}</b>\n"
         f"Mercado: {ticker}\n"
         f"Lado: {direccion}\n"
-        f"Precio de entrada ahora mismo: <b>{entry_price}¢</b>\n"
-        f"Precio del activo: {underlying_price}\n"
-        f"Te aviso de nuevo cuando llegue a ~{objetivo}¢ (10% de ganancia)."
+        f"Precio de ENTRADA: <b>{entry_price}¢</b>\n"
+        f"Precio de SALIDA (objetivo, 10%): <b>{objetivo}¢</b>\n"
+        f"Precio del activo ahora: {underlying_price}"
     )
     try:
         send_message(bot_token, chat_id, texto)
