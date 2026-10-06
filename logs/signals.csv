@@ -1,1 +1,4 @@
 timestamp_utc,market_ticker,series,evento,lado,precio_entrada_c,precio_actual_c,roi_pct,activo_en_entrada,activo_ahora
+2026-10-06T14:30:06Z,KXBTC15M-26OCT061030-30,KXBTC15M,ciclo_cerrado_sin_señal,no,100,,,86076.08,
+2026-10-06T14:30:21Z,KXXRP15M-26OCT061030-30,KXXRP15M,ciclo_cerrado_sin_señal,no,100,,,1.51384,
+2026-10-06T14:30:34Z,KXETH15M-26OCT061030-30,KXETH15M,ciclo_cerrado_sin_señal,no,100,,,2709.1,
