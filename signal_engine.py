@@ -199,7 +199,7 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
     direccion = "SUBE" if lado == "yes" else "BAJA"
     texto = (
         f"<b>SALIDA KALSHI — {activo}</b>\n"
-        f"Mercado: {ticker}\n"
+        f"Mercado: 15 min\n"
         f"Lado: {direccion}\n"
         f"Precio de ENTRADA: <b>{entrada}¢</b>\n"
         f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
@@ -226,7 +226,7 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
         f"{cabecera}\n"
         f"<b>ENTRADA KALSHI — {activo}</b>\n"
         f"{cabecera}\n"
-        f"Mercado: {ticker}\n"
+        f"Mercado: 15 min\n"
         f"Lado: {direccion}\n"
         f"Precio de ENTRADA: <b>{entry_price}¢</b>\n"
         f"Precio de SALIDA (objetivo, 10%): <b>{objetivo}¢</b>"
@@ -242,7 +242,7 @@ def send_stop_loss_signal(bot_token, chat_id, *, series, ticker, lado, entrada, 
     direccion = "SUBE" if lado == "yes" else "BAJA"
     texto = (
         f"<b>CORTE DE PÉRDIDA — {activo}</b>\n"
-        f"Mercado: {ticker}\n"
+        f"Mercado: 15 min\n"
         f"Lado: {direccion}\n"
         f"Precio de ENTRADA: <b>{entrada}¢</b>\n"
         f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
@@ -261,7 +261,7 @@ def send_forced_exit_signal(bot_token, chat_id, *, series, ticker, lado, entrada
     direccion = "SUBE" if lado == "yes" else "BAJA"
     texto = (
         f"<b>CIERRE OBLIGATORIO — {activo}</b>\n"
-        f"Mercado: {ticker}\n"
+        f"Mercado: 15 min\n"
         f"Lado: {direccion}\n"
         f"Precio de ENTRADA: <b>{entrada}¢</b>\n"
         f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
