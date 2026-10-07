@@ -1,76 +1,56 @@
 {
   "underlying_history": {
     "KXBTC15M": [
-      83795.24,
-      83824.05,
-      83841.51,
-      83809.67,
-      83809.31,
-      83823.83
+      83908.25,
+      83877.74,
+      83840.93
     ],
     "KXETH15M": [
-      2612.03,
-      2613.03,
-      2613.24,
-      2612.17,
-      2611.54,
-      2612.12
+      2615.02,
+      2614.17,
+      2612.72
     ],
     "KXSOL15M": [
-      117.83,
-      117.85,
-      117.84,
-      117.82,
-      117.79,
-      117.83
+      117.94,
+      117.93,
+      117.89
     ],
     "KXXRP15M": [
-      1.45661,
-      1.45748,
-      1.45743,
-      1.45658,
-      1.45618,
-      1.45659
+      1.45953,
+      1.45907,
+      1.45757
     ]
   },
   "current_ticker": {
-    "KXBTC15M": "KXBTC15M-26OCT062230-30",
-    "KXETH15M": "KXETH15M-26OCT062230-30",
-    "KXSOL15M": "KXSOL15M-26OCT062230-30",
-    "KXXRP15M": "KXXRP15M-26OCT062230-30"
+    "KXBTC15M": "KXBTC15M-26OCT062245-45",
+    "KXETH15M": "KXETH15M-26OCT062245-45",
+    "KXSOL15M": "KXSOL15M-26OCT062245-45",
+    "KXXRP15M": "KXXRP15M-26OCT062245-45"
   },
   "positions": {
-    "KXETH15M-26OCT062230-30": {
-      "side": "yes",
-      "entry_price": 48,
-      "entry_time": "2026-10-07T02:15:29Z",
-      "underlying_entry": 2617.82,
-      "series": "KXETH15M",
-      "signaled": true
-    },
-    "KXSOL15M-26OCT062230-30": {
-      "side": "yes",
-      "entry_price": 45,
-      "entry_time": "2026-10-07T02:15:31Z",
-      "underlying_entry": 117.72,
-      "series": "KXSOL15M",
-      "signaled": true
-    },
-    "KXBTC15M-26OCT062230-30": {
+    "KXBTC15M-26OCT062245-45": {
       "side": "no",
-      "entry_price": 52,
-      "entry_time": "2026-10-07T02:15:42Z",
-      "underlying_entry": 83910.58,
+      "entry_price": 36,
+      "entry_time": "2026-10-07T02:31:48Z",
+      "underlying_entry": 83840.93,
       "series": "KXBTC15M",
-      "signaled": true
+      "signaled": false
     },
-    "KXXRP15M-26OCT062230-30": {
-      "side": "yes",
-      "entry_price": 52,
-      "entry_time": "2026-10-07T02:17:15Z",
-      "underlying_entry": 1.46064,
+    "KXETH15M-26OCT062245-45": {
+      "side": "no",
+      "entry_price": 42,
+      "entry_time": "2026-10-07T02:31:49Z",
+      "underlying_entry": 2612.72,
+      "series": "KXETH15M",
+      "signaled": false
+    },
+    "KXXRP15M-26OCT062245-45": {
+      "side": "no",
+      "entry_price": 41,
+      "entry_time": "2026-10-07T02:31:51Z",
+      "underlying_entry": 1.45757,
       "series": "KXXRP15M",
-      "signaled": true
+      "signaled": false
     }
   }
 }
