@@ -247,8 +247,8 @@ def send_stop_loss_signal(bot_token, chat_id, *, series, ticker, lado, entrada, 
         f"Precio de ENTRADA: <b>{entrada}¢</b>\n"
         f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
         f"Pérdida: <b>{roi*100:.1f}%</b>\n"
-        f"🚨🚨🚨 <b>COBRAR COBRAR COBRAR</b> 🚨🚨🚨\n"
-        f"💰💵🤑💵💰"
+        f"🔴🔴🔴 <b>ADVERTENCIA</b> 🔴🔴🔴\n"
+        f"🚨⚠️🚨 <b>SALIR SALIR SALIR</b> 🚨⚠️🚨"
     )
     try:
         send_message(bot_token, chat_id, texto)
@@ -259,6 +259,16 @@ def send_stop_loss_signal(bot_token, chat_id, *, series, ticker, lado, entrada, 
 def send_forced_exit_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, roi):
     activo = series.replace("KX", "").replace("15M", "")
     direccion = "SUBE" if lado == "yes" else "BAJA"
+    if roi >= 0:
+        cierre = (
+            f"🚨🚨🚨 <b>COBRAR COBRAR COBRAR</b> 🚨🚨🚨\n"
+            f"💰💵🤑💵💰"
+        )
+    else:
+        cierre = (
+            f"🔴🔴🔴 <b>ADVERTENCIA</b> 🔴🔴🔴\n"
+            f"🚨⚠️🚨 <b>SALIR SALIR SALIR</b> 🚨⚠️🚨"
+        )
     texto = (
         f"<b>CIERRE OBLIGATORIO — {activo}</b>\n"
         f"Mercado: 15 min\n"
@@ -267,8 +277,7 @@ def send_forced_exit_signal(bot_token, chat_id, *, series, ticker, lado, entrada
         f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
         f"Resultado: <b>{roi*100:+.1f}%</b>\n"
         f"Se acaba el tiempo del ciclo.\n"
-        f"🚨🚨🚨 <b>COBRAR COBRAR COBRAR</b> 🚨🚨🚨\n"
-        f"💰💵🤑💵💰"
+        f"{cierre}"
     )
     try:
         send_message(bot_token, chat_id, texto)
