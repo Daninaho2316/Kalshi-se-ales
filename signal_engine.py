@@ -88,6 +88,11 @@ MIN_TIME_TO_CLOSE_SECONDS = 180  # 3 minutos
 # vencer sin vender).
 STOP_LOSS_PCT = 0.30       # cortar la perdida si el contrato cae 30% desde la entrada
 FORCE_EXIT_SECONDS = 45    # si quedan <45s para el cierre y sigue abierta, cerrarla YA
+MIN_HOLD_SECONDS = 30      # no avisar la toma de ganancia antes de este tiempo desde la
+                           # entrada: en datos reales muchas entradas llegaban al 10% en
+                           # 10-20 segundos, un tiempo imposible para que el usuario abra
+                           # Kalshi y compre a mano. El corte de perdida y el cierre forzado
+                           # NO se retrasan (la proteccion contra perdidas va primero).
 HISTORY_WINDOW = 6         # lecturas del activo que se guardan para medir el movimiento (~60-70s)
 POLL_SECONDS = 8           # pausa entre lecturas dentro de una misma corrida (bajado de 12 a 8
                            # para reaccionar mas rapido al corte de perdida)
@@ -156,6 +161,18 @@ def _to_cents(dollars_str):
     except (TypeError, ValueError):
         return None
     return int(round(value * 100))
+
+
+def seconds_since(iso_str):
+    """Segundos transcurridos desde un timestamp guardado con now_iso().
+    0 si no se puede leer (nunca bloquea por un dato faltante)."""
+    if not iso_str:
+        return 0
+    try:
+        then = datetime.strptime(iso_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - then).total_seconds()
+    except Exception:
+        return 0
 
 
 def seconds_until_close(market: dict):
@@ -422,8 +439,10 @@ def poll_once(client, state, bot_token, chat_id):
             if entry_price is not None and current_sell is not None and entry_price > 0:
                 roi = (current_sell - entry_price) / entry_price
 
-                if roi >= ROI_TARGET:
-                    # objetivo de ganancia alcanzado
+                if roi >= ROI_TARGET and seconds_since(position.get("entry_time")) >= MIN_HOLD_SECONDS:
+                    # objetivo de ganancia alcanzado Y ya paso el tiempo minimo desde
+                    # la entrada (si no, se espera al siguiente poll sin marcar nada,
+                    # para darle chance real al usuario de haber entrado en Kalshi)
                     send_signal(
                         bot_token, chat_id,
                         series=series, ticker=ticker, lado=side,
