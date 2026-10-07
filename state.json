@@ -5,15 +5,16 @@
       83309.34,
       83312.6,
       83322.69,
-      83334.98
+      83334.98,
+      83329.49
     ],
     "KXETH15M": [
-      2557.64,
       2557.56,
       2558.37,
       2558.48,
       2558.77,
-      2559.29
+      2559.29,
+      2558.84
     ],
     "KXSOL15M": [
       118.39,
@@ -45,6 +46,14 @@
       "entry_time": "2026-10-07T18:16:15Z",
       "underlying_entry": 2559.29,
       "series": "KXETH15M",
+      "signaled": false
+    },
+    "KXBTC15M-26OCT071430-30": {
+      "side": "yes",
+      "entry_price": 58,
+      "entry_time": "2026-10-07T18:16:26Z",
+      "underlying_entry": 83329.49,
+      "series": "KXBTC15M",
       "signaled": false
     }
   }
