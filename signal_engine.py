@@ -27,6 +27,7 @@ import os
 import subprocess
 import time
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from kalshi_client import KalshiClient
 from telegram_notify import send_message
@@ -109,6 +110,17 @@ RUN_SECONDS = 20700         # ~5h45min: casi todo el limite de 6h de un job de G
 
 def now_iso():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+_ATLANTA_TZ = ZoneInfo("America/New_York")
+
+
+def hora_atlanta():
+    """Hora exacta de envio en hora de Atlanta (EDT/EST, se ajusta sola),
+    para que el usuario vea en el propio mensaje de Telegram que tan
+    "fresca" es la señal al momento de leerla -- sin esto no habia forma
+    de saber si una alerta tenia 2 segundos o 3 minutos de antiguedad."""
+    return datetime.now(timezone.utc).astimezone(_ATLANTA_TZ).strftime("%I:%M:%S %p").lstrip("0")
 
 
 def load_state():
@@ -222,7 +234,8 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
         f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
         f"Ganancia sobre lo invertido: <b>{roi*100:.1f}%</b>\n"
         f"🚨🚨🚨 <b>COBRAR COBRAR COBRAR</b> 🚨🚨🚨\n"
-        f"💰💵🤑💵💰"
+        f"💰💵🤑💵💰\n"
+        f"Enviado: {hora_atlanta()} (hora Atlanta)"
     )
     try:
         send_message(bot_token, chat_id, texto)
@@ -246,7 +259,8 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
         f"Mercado: 15 min\n"
         f"Lado: {direccion}\n"
         f"Precio de ENTRADA: <b>{entry_price}¢</b>\n"
-        f"Precio de SALIDA (objetivo, 10%): <b>{objetivo}¢</b>"
+        f"Precio de SALIDA (objetivo, 10%): <b>{objetivo}¢</b>\n"
+        f"Enviado: {hora_atlanta()} (hora Atlanta)"
     )
     try:
         send_message(bot_token, chat_id, texto)
@@ -265,7 +279,8 @@ def send_stop_loss_signal(bot_token, chat_id, *, series, ticker, lado, entrada, 
         f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
         f"Pérdida: <b>{roi*100:.1f}%</b>\n"
         f"🔴🔴🔴 <b>ADVERTENCIA</b> 🔴🔴🔴\n"
-        f"🚨⚠️🚨 <b>SALIR SALIR SALIR</b> 🚨⚠️🚨"
+        f"🚨⚠️🚨 <b>SALIR SALIR SALIR</b> 🚨⚠️🚨\n"
+        f"Enviado: {hora_atlanta()} (hora Atlanta)"
     )
     try:
         send_message(bot_token, chat_id, texto)
@@ -294,7 +309,8 @@ def send_forced_exit_signal(bot_token, chat_id, *, series, ticker, lado, entrada
         f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
         f"Resultado: <b>{roi*100:+.1f}%</b>\n"
         f"Se acaba el tiempo del ciclo.\n"
-        f"{cierre}"
+        f"{cierre}\n"
+        f"Enviado: {hora_atlanta()} (hora Atlanta)"
     )
     try:
         send_message(bot_token, chat_id, texto)
