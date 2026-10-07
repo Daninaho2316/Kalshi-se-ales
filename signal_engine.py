@@ -204,7 +204,8 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
         f"Precio de ENTRADA: <b>{entrada}¢</b>\n"
         f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
         f"Ganancia sobre lo invertido: <b>{roi*100:.1f}%</b>\n"
-        f"Vender/cerrar ahora."
+        f"🚨🚨🚨 <b>COBRAR COBRAR COBRAR</b> 🚨🚨🚨\n"
+        f"💰💵🤑💵💰"
     )
     try:
         send_message(bot_token, chat_id, texto)
@@ -214,10 +215,17 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
 
 def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, underlying_price):
     activo = series.replace("KX", "").replace("15M", "")
-    direccion = "SUBE" if lado == "yes" else "BAJA"
+    if lado == "yes":
+        direccion = "SUBE"
+        cabecera = "🟢⬆️🟢⬆️🟢⬆️"
+    else:
+        direccion = "BAJA"
+        cabecera = "🔴⬇️🔴⬇️🔴⬇️"
     objetivo = min(99, max(entry_price + 1, math.ceil(entry_price * 1.10)))
     texto = (
+        f"{cabecera}\n"
         f"<b>ENTRADA KALSHI — {activo}</b>\n"
+        f"{cabecera}\n"
         f"Mercado: {ticker}\n"
         f"Lado: {direccion}\n"
         f"Precio de ENTRADA: <b>{entry_price}¢</b>\n"
@@ -239,7 +247,8 @@ def send_stop_loss_signal(bot_token, chat_id, *, series, ticker, lado, entrada, 
         f"Precio de ENTRADA: <b>{entrada}¢</b>\n"
         f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
         f"Pérdida: <b>{roi*100:.1f}%</b>\n"
-        f"Vender/cerrar YA para limitar la pérdida."
+        f"🚨🚨🚨 <b>COBRAR COBRAR COBRAR</b> 🚨🚨🚨\n"
+        f"💰💵🤑💵💰"
     )
     try:
         send_message(bot_token, chat_id, texto)
@@ -257,7 +266,9 @@ def send_forced_exit_signal(bot_token, chat_id, *, series, ticker, lado, entrada
         f"Precio de ENTRADA: <b>{entrada}¢</b>\n"
         f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
         f"Resultado: <b>{roi*100:+.1f}%</b>\n"
-        f"Se acaba el tiempo del ciclo — vender/cerrar YA, no dejar que venza."
+        f"Se acaba el tiempo del ciclo.\n"
+        f"🚨🚨🚨 <b>COBRAR COBRAR COBRAR</b> 🚨🚨🚨\n"
+        f"💰💵🤑💵💰"
     )
     try:
         send_message(bot_token, chat_id, texto)
