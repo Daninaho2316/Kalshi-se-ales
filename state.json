@@ -1,15 +1,20 @@
 {
   "underlying_history": {
     "KXBTC15M": [
-      83727.43,
-      83724.0,
-      83724.6,
-      83724.89,
-      83726.54,
-      83746.62
+      83760.21,
+      83754.78,
+      83766.46,
+      83755.84,
+      83756.06,
+      83716.1
     ],
     "KXETH15M": [
-      2579.17
+      2580.72,
+      2580.23,
+      2581.03,
+      2579.78,
+      2580.11,
+      2578.67
     ],
     "KXSOL15M": [
       118.39,
@@ -29,19 +34,27 @@
     ]
   },
   "current_ticker": {
-    "KXBTC15M": "KXBTC15M-26OCT070700-00",
+    "KXBTC15M": "KXBTC15M-26OCT070715-15",
     "KXETH15M": "KXETH15M-26OCT070715-15",
     "KXSOL15M": "KXSOL15M-26OCT062315-15",
     "KXXRP15M": "KXXRP15M-26OCT062315-15"
   },
   "positions": {
-    "KXBTC15M-26OCT070700-00": {
-      "side": "yes",
-      "entry_price": 81,
-      "entry_time": "2026-10-07T10:49:11Z",
-      "underlying_entry": 83725.76,
+    "KXBTC15M-26OCT070715-15": {
+      "side": "no",
+      "entry_price": 36,
+      "entry_time": "2026-10-07T11:02:42Z",
+      "underlying_entry": 83716.1,
       "series": "KXBTC15M",
-      "signaled": true
+      "signaled": false
+    },
+    "KXETH15M-26OCT070715-15": {
+      "side": "no",
+      "entry_price": 35,
+      "entry_time": "2026-10-07T11:02:43Z",
+      "underlying_entry": 2578.67,
+      "series": "KXETH15M",
+      "signaled": false
     }
   }
 }
