@@ -386,7 +386,16 @@ def poll_once(client, state, bot_token, chat_id):
             # no alcanzaria a llegar al 10% y se saldria sin señal de salida
             # (exactamente la "apuesta" que se quiere evitar).
             too_late = remaining_s is not None and remaining_s < MIN_TIME_TO_CLOSE_SECONDS
-            if len(hist) >= 2 and not too_late:
+            # Antes se evaluaba la entrada con solo 2 lecturas del activo (tan poco
+            # como 8 segundos de historial, un solo "tick"). Eso disparaba la entrada
+            # sobre un movimiento instantaneo que Kalshi alcanza a corregir casi al
+            # toque -- para cuando el usuario abria la app ya no quedaba nada que
+            # agarrar. Ahora se exige la ventana completa de HISTORY_WINDOW lecturas
+            # (~45-50s con POLL_SECONDS=8) para confirmar que el movimiento es
+            # sostenido, no un parpadeo de un segundo -- una entrada real que lleva
+            # medio minuto formandose tiene mas chance real de seguir viva cuando el
+            # usuario entra a mano, en vez de ya haber desaparecido.
+            if len(hist) >= HISTORY_WINDOW and not too_late:
                 base = hist[0]
                 if base:
                     pct_move = (hist[-1] - base) / base
