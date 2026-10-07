@@ -43,8 +43,10 @@ CSV_FIELDS = [
 SERIES_INDEX = {
     "KXBTC15M": "BRTI",
     "KXETH15M": "ETHUSD_RTI",
-    "KXSOL15M": "SOLUSD_RTI",
-    "KXXRP15M": "XRPUSD_RTI",
+    # KXSOL15M y KXXRP15M desactivados a pedido del usuario: con las 4 series
+    # activas llegaban demasiadas senales juntas y era dificil entrar a
+    # todas a tiempo; se dejan solo BTC y ETH (mejor resultado promedio por
+    # operacion en el rastreador).
 }
 
 # Umbral minimo de movimiento del activo (fraccion, no %) para marcar una
@@ -52,8 +54,6 @@ SERIES_INDEX = {
 MOMENTUM_THRESHOLD = {
     "KXBTC15M": 0.0004,  # 0.04%
     "KXETH15M": 0.0006,  # 0.06%
-    "KXSOL15M": 0.0010,  # 0.10%
-    "KXXRP15M": 0.0012,  # 0.12%
 }
 
 ROI_TARGET = 0.10          # 10% de ganancia sobre el precio de entrada
