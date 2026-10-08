@@ -4,12 +4,14 @@
       82369.7,
       82336.08,
       82353.76,
-      82343.68
+      82343.68,
+      82320.24
     ],
     "KXETH15M": [
       2532.08,
       2530.95,
-      2530.95
+      2530.95,
+      2530.55
     ],
     "KXSOL15M": [
       118.39,
@@ -34,5 +36,14 @@
     "KXSOL15M": "KXSOL15M-26OCT062315-15",
     "KXXRP15M": "KXXRP15M-26OCT062315-15"
   },
-  "positions": {}
+  "positions": {
+    "KXETH15M-26OCT080845-45": {
+      "side": "no",
+      "entry_price": 61,
+      "entry_time": "2026-10-08T12:30:53Z",
+      "underlying_entry": 2530.55,
+      "series": "KXETH15M",
+      "signaled": false
+    }
+  }
 }
