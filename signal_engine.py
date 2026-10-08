@@ -95,6 +95,16 @@ MIN_HOLD_SECONDS = 30      # no avisar la toma de ganancia antes de este tiempo 
                            # Kalshi y compre a mano. El corte de perdida y el cierre forzado
                            # NO se retrasan (la proteccion contra perdidas va primero).
 HISTORY_WINDOW = 6         # lecturas del activo que se guardan para medir el movimiento (~60-70s)
+ENTRY_CONFIRM_READINGS = 4 # cuantas de esas lecturas (las mas recientes) se usan para confirmar
+                           # una entrada (~24-32s con POLL_SECONDS=8). Antes se usaba el buffer
+                           # completo (HISTORY_WINDOW=6, ~45-50s): eso evito el problema de "no
+                           # da chance ni de entrar" (señal sobre un parpadeo de 1 tick), pero el
+                           # usuario reporto el efecto contrario -- para cuando ve la alerta el
+                           # precio ya se habia movido ~10 centavos mas (una tendencia confirmada
+                           # tiende a seguir un poco despues de confirmarse). Con una ventana mas
+                           # corta se avisa un poco antes en el mismo movimiento, con menos
+                           # recorrido ya "gastado" para cuando llega la alerta -- a seguir
+                           # ajustando segun la diferencia real que vea el usuario.
 POLL_SECONDS = 8           # pausa entre lecturas dentro de una misma corrida (bajado de 12 a 8
                            # para reaccionar mas rapido al corte de perdida)
 
@@ -411,8 +421,8 @@ def poll_once(client, state, bot_token, chat_id):
             # sostenido, no un parpadeo de un segundo -- una entrada real que lleva
             # medio minuto formandose tiene mas chance real de seguir viva cuando el
             # usuario entra a mano, en vez de ya haber desaparecido.
-            if len(hist) >= HISTORY_WINDOW and not too_late:
-                base = hist[0]
+            if len(hist) >= ENTRY_CONFIRM_READINGS and not too_late:
+                base = hist[-ENTRY_CONFIRM_READINGS]
                 if base:
                     pct_move = (hist[-1] - base) / base
                     threshold = MOMENTUM_THRESHOLD.get(series, 0.0005)
