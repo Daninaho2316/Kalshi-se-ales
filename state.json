@@ -1,18 +1,19 @@
 {
   "underlying_history": {
     "KXBTC15M": [
-      80865.02,
       80824.76,
       80750.8,
       80739.12,
       80714.17,
-      80751.24
+      80751.24,
+      80816.64
     ],
     "KXETH15M": [
       2409.4,
       2409.49,
       2409.16,
-      2410.86
+      2410.86,
+      2414.72
     ],
     "KXSOL15M": [
       118.39,
@@ -44,7 +45,7 @@
       "entry_time": "2026-10-08T17:00:35Z",
       "underlying_entry": 80739.12,
       "series": "KXBTC15M",
-      "signaled": false
+      "signaled": true
     },
     "KXETH15M-26OCT081315-15": {
       "side": "yes",
