@@ -108,6 +108,24 @@ ENTRY_CONFIRM_READINGS = 4 # cuantas de esas lecturas (las mas recientes) se usa
 POLL_SECONDS = 8           # pausa entre lecturas dentro de una misma corrida (bajado de 12 a 8
                            # para reaccionar mas rapido al corte de perdida)
 
+# Pausa de ENTRADAS nuevas durante estos ratos del dia (hora NY/Atlanta, la
+# misma zona que usa hora_atlanta()). El usuario reporto que las entradas
+# que salen en estos horarios (apertura de mercados ~9-10:30am, almuerzo
+# ~1-2pm) suelen ser de peor calidad. Esto NO afecta las SALIDAS -- cobrar,
+# corte de perdida y cierre forzado siguen funcionando siempre, una posicion
+# ya abierta nunca se queda atascada por esto.
+PAUSA_ENTRADAS_NY = [
+    (9, 0, 10, 30),   # 9:00am - 10:30am hora NY
+    (13, 0, 14, 0),   # 1:00pm - 2:00pm hora NY
+]
+
+MAX_ASK_JUMP_CENTS = 8     # si el ask del contrato (yes_ask o no_ask, segun el lado que se
+                           # vaya a comprar) salta mas de esto en centavos entre una lectura
+                           # y la siguiente (~8s de diferencia con POLL_SECONDS), se descarta
+                           # esa entrada: un salto asi de grande en tan poco tiempo suele ser
+                           # un problema de datos o liquidez, no un precio real al que se
+                           # pueda comprar.
+
 # Cada cuanto se hace un "git push" de respaldo aunque no haya pasado nada
 # nuevo (ademas del push inmediato que se hace apenas se registra una
 # entrada/salida/cierre). Antes el log solo se subia a GitHub al terminar
@@ -133,11 +151,25 @@ def hora_atlanta():
     return datetime.now(timezone.utc).astimezone(_ATLANTA_TZ).strftime("%I:%M:%S %p").lstrip("0")
 
 
+def en_pausa_de_entradas():
+    """True si la hora actual en NY/Atlanta cae dentro de alguna de las
+    ventanas de PAUSA_ENTRADAS_NY. Solo bloquea ENTRADAS nuevas -- las
+    salidas de posiciones ya abiertas no llaman a esta funcion."""
+    ahora = datetime.now(timezone.utc).astimezone(_ATLANTA_TZ)
+    minutos_ahora = ahora.hour * 60 + ahora.minute
+    for h1, m1, h2, m2 in PAUSA_ENTRADAS_NY:
+        inicio = h1 * 60 + m1
+        fin = h2 * 60 + m2
+        if inicio <= minutos_ahora < fin:
+            return True
+    return False
+
+
 def load_state():
     if os.path.exists(STATE_PATH):
         with open(STATE_PATH, "r") as f:
             return json.load(f)
-    return {"underlying_history": {}, "current_ticker": {}, "positions": {}}
+    return {"underlying_history": {}, "current_ticker": {}, "positions": {}, "last_ask": {}}
 
 
 def save_state(state):
@@ -401,11 +433,26 @@ def poll_once(client, state, bot_token, chat_id):
             archive_unsignaled(state, series, prev_ticker)
             state["underlying_history"][series] = [underlying_price]
             hist = state["underlying_history"][series]
+            state.setdefault("last_ask", {}).pop(series, None)
         state["current_ticker"][series] = ticker
 
         yes_bid, yes_ask, no_bid, no_ask = contract_prices(market)
         position = state["positions"].get(ticker)
         remaining_s = seconds_until_close(market)
+
+        # Salto del ask entre esta lectura y la anterior de la misma serie,
+        # para el filtro MAX_ASK_JUMP_CENTS (Fix: entradas sobre datos malos
+        # o ilíquidos). Se actualiza SIEMPRE, haya o no posicion abierta, para
+        # que la proxima lectura se compare contra esta.
+        last_ask_series = state.setdefault("last_ask", {}).setdefault(series, {})
+        prev_yes_ask = last_ask_series.get("yes")
+        prev_no_ask = last_ask_series.get("no")
+        yes_ask_jump = abs(yes_ask - prev_yes_ask) if (yes_ask is not None and prev_yes_ask is not None) else None
+        no_ask_jump = abs(no_ask - prev_no_ask) if (no_ask is not None and prev_no_ask is not None) else None
+        if yes_ask is not None:
+            last_ask_series["yes"] = yes_ask
+        if no_ask is not None:
+            last_ask_series["no"] = no_ask
 
         if position is None:
             # Si al ciclo le queda muy poco tiempo, no abrir una entrada nueva:
@@ -421,52 +468,58 @@ def poll_once(client, state, bot_token, chat_id):
             # sostenido, no un parpadeo de un segundo -- una entrada real que lleva
             # medio minuto formandose tiene mas chance real de seguir viva cuando el
             # usuario entra a mano, en vez de ya haber desaparecido.
-            if len(hist) >= ENTRY_CONFIRM_READINGS and not too_late:
+            if len(hist) >= ENTRY_CONFIRM_READINGS and not too_late and not en_pausa_de_entradas():
                 base = hist[-ENTRY_CONFIRM_READINGS]
                 if base:
                     pct_move = (hist[-1] - base) / base
                     threshold = MOMENTUM_THRESHOLD.get(series, 0.0005)
                     if abs(pct_move) >= threshold:
                         if pct_move > 0 and yes_ask is not None and MIN_ENTRY_PRICE <= yes_ask <= MAX_ENTRY_PRICE:
-                            state["positions"][ticker] = {
-                                "side": "yes",
-                                "entry_price": yes_ask,
-                                "entry_time": now_iso(),
-                                "underlying_entry": underlying_price,
-                                "series": series,
-                                "signaled": False,
-                            }
-                            send_entry_signal(
-                                bot_token, chat_id, series=series, ticker=ticker,
-                                lado="yes", entry_price=yes_ask, underlying_price=underlying_price,
-                            )
-                            log_row({
-                                "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
-                                "evento": "entrada_detectada", "lado": "yes",
-                                "precio_entrada_c": yes_ask, "precio_actual_c": "", "roi_pct": "",
-                                "activo_en_entrada": underlying_price, "activo_ahora": "",
-                                "segundos_restantes_cierre": remaining_s,
-                            })
+                            if yes_ask_jump is not None and yes_ask_jump > MAX_ASK_JUMP_CENTS:
+                                print(f"[INFO] {series}: entrada SUBE descartada, el ask salto {yes_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
+                            else:
+                                state["positions"][ticker] = {
+                                    "side": "yes",
+                                    "entry_price": yes_ask,
+                                    "entry_time": now_iso(),
+                                    "underlying_entry": underlying_price,
+                                    "series": series,
+                                    "signaled": False,
+                                }
+                                send_entry_signal(
+                                    bot_token, chat_id, series=series, ticker=ticker,
+                                    lado="yes", entry_price=yes_ask, underlying_price=underlying_price,
+                                )
+                                log_row({
+                                    "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
+                                    "evento": "entrada_detectada", "lado": "yes",
+                                    "precio_entrada_c": yes_ask, "precio_actual_c": "", "roi_pct": "",
+                                    "activo_en_entrada": underlying_price, "activo_ahora": "",
+                                    "segundos_restantes_cierre": remaining_s,
+                                })
                         elif pct_move < 0 and no_ask is not None and MIN_ENTRY_PRICE <= no_ask <= MAX_ENTRY_PRICE:
-                            state["positions"][ticker] = {
-                                "side": "no",
-                                "entry_price": no_ask,
-                                "entry_time": now_iso(),
-                                "underlying_entry": underlying_price,
-                                "series": series,
-                                "signaled": False,
-                            }
-                            send_entry_signal(
-                                bot_token, chat_id, series=series, ticker=ticker,
-                                lado="no", entry_price=no_ask, underlying_price=underlying_price,
-                            )
-                            log_row({
-                                "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
-                                "evento": "entrada_detectada", "lado": "no",
-                                "precio_entrada_c": no_ask, "precio_actual_c": "", "roi_pct": "",
-                                "activo_en_entrada": underlying_price, "activo_ahora": "",
-                                "segundos_restantes_cierre": remaining_s,
-                            })
+                            if no_ask_jump is not None and no_ask_jump > MAX_ASK_JUMP_CENTS:
+                                print(f"[INFO] {series}: entrada BAJA descartada, el ask salto {no_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
+                            else:
+                                state["positions"][ticker] = {
+                                    "side": "no",
+                                    "entry_price": no_ask,
+                                    "entry_time": now_iso(),
+                                    "underlying_entry": underlying_price,
+                                    "series": series,
+                                    "signaled": False,
+                                }
+                                send_entry_signal(
+                                    bot_token, chat_id, series=series, ticker=ticker,
+                                    lado="no", entry_price=no_ask, underlying_price=underlying_price,
+                                )
+                                log_row({
+                                    "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
+                                    "evento": "entrada_detectada", "lado": "no",
+                                    "precio_entrada_c": no_ask, "precio_actual_c": "", "roi_pct": "",
+                                    "activo_en_entrada": underlying_price, "activo_ahora": "",
+                                    "segundos_restantes_cierre": remaining_s,
+                                })
         elif not position.get("signaled"):
             side = position["side"]
             entry_price = position["entry_price"]
