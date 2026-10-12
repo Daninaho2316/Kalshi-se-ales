@@ -653,18 +653,20 @@ def poll_once(client, state, bot_token, chat_id):
                     pct_move = (hist[-1] - base) / base
                     threshold = MOMENTUM_THRESHOLD.get(series, 0.0005)
                     if abs(pct_move) >= threshold:
-                        # Indicadores tecnicos (EMA/RSI/ADX) sobre velas reales de
-                        # Kraken, como confirmacion extra de que el movimiento del
-                        # activo es una tendencia de verdad y no ruido -- si fallan
-                        # (sesgo_detalle vacio) NO se bloquea la entrada, se sigue
-                        # como antes (sin esta capa).
-                        sesgo, sesgo_detalle = sesgo_tecnico(series)
-                        indicadores_ok = bool(sesgo_detalle)
+                        # Los indicadores tecnicos (EMA/RSI/ADX via Kraken) se
+                        # desactivaron como filtro de entrada: la llamada de red a
+                        # Kraken quedaba DENTRO del mismo ciclo que vigila los
+                        # precios, asi que cuando Kraken tardaba o fallaba, todo el
+                        # bot se atrasaba (no solo esa entrada -- tambien el
+                        # monitoreo de las posiciones abiertas). El usuario reporto
+                        # las señales mas atrasadas justo despues de este deploy.
+                        # Las funciones sesgo_tecnico()/get_klines() se dejan en el
+                        # archivo por si se retoma esto mas adelante hechas de forma
+                        # que no bloqueen el ciclo principal (ej. en un hilo aparte).
+                        sesgo, sesgo_detalle = None, {}
 
                         if pct_move > 0 and yes_ask is not None and MIN_ENTRY_PRICE <= yes_ask <= MAX_ENTRY_PRICE:
-                            if indicadores_ok and sesgo != "sube":
-                                print(f"[INFO] {series}: entrada SUBE descartada, sesgo tecnico = {sesgo} (no confirma)")
-                            elif yes_ask_jump is not None and yes_ask_jump > MAX_ASK_JUMP_CENTS:
+                            if yes_ask_jump is not None and yes_ask_jump > MAX_ASK_JUMP_CENTS:
                                 print(f"[INFO] {series}: entrada SUBE descartada, el ask salto {yes_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
                                 state["positions"][ticker] = {
@@ -688,9 +690,7 @@ def poll_once(client, state, bot_token, chat_id):
                                     "segundos_restantes_cierre": remaining_s,
                                 })
                         elif pct_move < 0 and no_ask is not None and MIN_ENTRY_PRICE <= no_ask <= MAX_ENTRY_PRICE:
-                            if indicadores_ok and sesgo != "baja":
-                                print(f"[INFO] {series}: entrada BAJA descartada, sesgo tecnico = {sesgo} (no confirma)")
-                            elif no_ask_jump is not None and no_ask_jump > MAX_ASK_JUMP_CENTS:
+                            if no_ask_jump is not None and no_ask_jump > MAX_ASK_JUMP_CENTS:
                                 print(f"[INFO] {series}: entrada BAJA descartada, el ask salto {no_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
                                 state["positions"][ticker] = {
