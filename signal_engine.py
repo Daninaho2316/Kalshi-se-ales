@@ -73,6 +73,14 @@ INDICATOR_CACHE_SECONDS = 30  # no hace falta pedir velas nuevas cada 8s: una
                                # asi se cuida la API publica de Kraken
 
 ROI_TARGET = 0.10          # 10% de ganancia sobre el precio de entrada
+
+LIMIT_OFFSET_CENTS = 2     # la alerta ya no dice "compra YA a X" (eso obliga a
+                           # perseguir el precio a mano) -- en vez de eso sugiere
+                           # una orden LIMITE unos centavos mas barata que el ask
+                           # del momento. Asi no hace falta llegar a tiempo al
+                           # segundo: la orden se queda puesta y se llena sola si
+                           # el precio retrocede un poco (cosa normal en estos
+                           # ciclos de 15 min), sin perseguir nada a mano.
 MAX_ENTRY_PRICE = 90       # no entrar si el precio ya esta tan alto que un 10% es matematicamente
                            # imposible (el contrato nunca pasa de 99-100c); 90c*1.10=99c, el limite exacto
 
@@ -448,7 +456,7 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
         print(f"[WARN] No se pudo enviar Telegram: {e}")
 
 
-def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, underlying_price, sesgo=None, sesgo_detalle=None):
+def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, ask_actual, underlying_price, sesgo=None, sesgo_detalle=None):
     activo = series.replace("KX", "").replace("15M", "")
     if lado == "yes":
         direccion = "SUBE"
@@ -456,6 +464,12 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
     else:
         direccion = "BAJA"
         cabecera = "🔴⬇️🔴⬇️🔴⬇️"
+    # entry_price aqui YA es el precio limite sugerido (lo que se asume que
+    # el usuario termina pagando) -- lo calcula poll_once() y es lo mismo
+    # que queda guardado en la posicion para medir el 10%/corte de perdida,
+    # asi todo el seguimiento de ahi en adelante es consistente con el
+    # precio real de la orden limite, no con el ask (ya viejo) del momento
+    # en que se detecto el movimiento.
     objetivo = min(99, max(entry_price + 1, math.ceil(entry_price * 1.10)))
     linea_tecnica = ""
     if sesgo_detalle:
@@ -478,8 +492,9 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
         f"{cabecera}\n"
         f"Mercado: 15 min\n"
         f"Lado: {direccion}\n"
-        f"Precio de ENTRADA: <b>{entry_price}¢</b>\n"
-        f"Precio de SALIDA (objetivo, 10%): <b>{objetivo}¢</b>\n"
+        f"Precio actual (ask): {ask_actual}¢\n"
+        f"👉 Pon ORDEN LÍMITE a: <b>{entry_price}¢</b> (no a mercado -- no persigas el precio)\n"
+        f"Precio de SALIDA (objetivo, 10% desde el límite): <b>{objetivo}¢</b>\n"
         f"{linea_tecnica}"
         f"Enviado: {hora_atlanta()} (hora Atlanta)"
     )
@@ -669,9 +684,10 @@ def poll_once(client, state, bot_token, chat_id):
                             if yes_ask_jump is not None and yes_ask_jump > MAX_ASK_JUMP_CENTS:
                                 print(f"[INFO] {series}: entrada SUBE descartada, el ask salto {yes_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
+                                limite_yes = max(1, yes_ask - LIMIT_OFFSET_CENTS)
                                 state["positions"][ticker] = {
                                     "side": "yes",
-                                    "entry_price": yes_ask,
+                                    "entry_price": limite_yes,
                                     "entry_time": now_iso(),
                                     "underlying_entry": underlying_price,
                                     "series": series,
@@ -679,13 +695,13 @@ def poll_once(client, state, bot_token, chat_id):
                                 }
                                 send_entry_signal(
                                     bot_token, chat_id, series=series, ticker=ticker,
-                                    lado="yes", entry_price=yes_ask, underlying_price=underlying_price,
+                                    lado="yes", entry_price=limite_yes, ask_actual=yes_ask, underlying_price=underlying_price,
                                     sesgo=sesgo, sesgo_detalle=sesgo_detalle,
                                 )
                                 log_row({
                                     "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
                                     "evento": "entrada_detectada", "lado": "yes",
-                                    "precio_entrada_c": yes_ask, "precio_actual_c": "", "roi_pct": "",
+                                    "precio_entrada_c": limite_yes, "precio_actual_c": "", "roi_pct": "",
                                     "activo_en_entrada": underlying_price, "activo_ahora": "",
                                     "segundos_restantes_cierre": remaining_s,
                                 })
@@ -693,9 +709,10 @@ def poll_once(client, state, bot_token, chat_id):
                             if no_ask_jump is not None and no_ask_jump > MAX_ASK_JUMP_CENTS:
                                 print(f"[INFO] {series}: entrada BAJA descartada, el ask salto {no_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
+                                limite_no = max(1, no_ask - LIMIT_OFFSET_CENTS)
                                 state["positions"][ticker] = {
                                     "side": "no",
-                                    "entry_price": no_ask,
+                                    "entry_price": limite_no,
                                     "entry_time": now_iso(),
                                     "underlying_entry": underlying_price,
                                     "series": series,
@@ -703,13 +720,13 @@ def poll_once(client, state, bot_token, chat_id):
                                 }
                                 send_entry_signal(
                                     bot_token, chat_id, series=series, ticker=ticker,
-                                    lado="no", entry_price=no_ask, underlying_price=underlying_price,
+                                    lado="no", entry_price=limite_no, ask_actual=no_ask, underlying_price=underlying_price,
                                     sesgo=sesgo, sesgo_detalle=sesgo_detalle,
                                 )
                                 log_row({
                                     "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
                                     "evento": "entrada_detectada", "lado": "no",
-                                    "precio_entrada_c": no_ask, "precio_actual_c": "", "roi_pct": "",
+                                    "precio_entrada_c": limite_no, "precio_actual_c": "", "roi_pct": "",
                                     "activo_en_entrada": underlying_price, "activo_ahora": "",
                                     "segundos_restantes_cierre": remaining_s,
                                 })
