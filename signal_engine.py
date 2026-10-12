@@ -74,13 +74,18 @@ INDICATOR_CACHE_SECONDS = 30  # no hace falta pedir velas nuevas cada 8s: una
 
 ROI_TARGET = 0.10          # 10% de ganancia sobre el precio de entrada
 
-LIMIT_OFFSET_CENTS = 2     # la alerta ya no dice "compra YA a X" (eso obliga a
-                           # perseguir el precio a mano) -- en vez de eso sugiere
-                           # una orden LIMITE unos centavos mas barata que el ask
-                           # del momento. Asi no hace falta llegar a tiempo al
-                           # segundo: la orden se queda puesta y se llena sola si
-                           # el precio retrocede un poco (cosa normal en estos
-                           # ciclos de 15 min), sin perseguir nada a mano.
+LIMIT_SLIPPAGE_BUFFER_CENTS = 10  # un limite 2c POR DEBAJO del ask (como se
+                           # probo primero) casi nunca se llena en un movimiento
+                           # de momentum real: el precio normalmente SIGUE
+                           # corriendo en la misma direccion, no retrocede hacia
+                           # el limite -- por eso el usuario reportaba el precio
+                           # "disparandose" 10c o mas en vez de bajar. La idea
+                           # correcta es al reves: un limite un poco POR ENCIMA
+                           # del ask, como tope de proteccion (se llena casi al
+                           # toque aunque el precio ya haya corrido durante el
+                           # tiempo de reaccion humana, pero nunca se paga mas de
+                           # eso) -- calibrado con el deslizamiento real que el
+                           # usuario reporto (10c+).
 MAX_ENTRY_PRICE = 90       # no entrar si el precio ya esta tan alto que un 10% es matematicamente
                            # imposible (el contrato nunca pasa de 99-100c); 90c*1.10=99c, el limite exacto
 
@@ -493,7 +498,7 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
         f"Mercado: 15 min\n"
         f"Lado: {direccion}\n"
         f"Precio actual (ask): {ask_actual}¢\n"
-        f"👉 Pon ORDEN LÍMITE a: <b>{entry_price}¢</b> (no a mercado -- no persigas el precio)\n"
+        f"👉 Pon ORDEN LÍMITE a: <b>{entry_price}¢</b> (tope maximo -- se llena casi al toque aunque el precio ya haya corrido, nunca pagas mas)\n"
         f"Precio de SALIDA (objetivo, 10% desde el límite): <b>{objetivo}¢</b>\n"
         f"{linea_tecnica}"
         f"Enviado: {hora_atlanta()} (hora Atlanta)"
@@ -684,7 +689,7 @@ def poll_once(client, state, bot_token, chat_id):
                             if yes_ask_jump is not None and yes_ask_jump > MAX_ASK_JUMP_CENTS:
                                 print(f"[INFO] {series}: entrada SUBE descartada, el ask salto {yes_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
-                                limite_yes = max(1, yes_ask - LIMIT_OFFSET_CENTS)
+                                limite_yes = min(99, yes_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
                                 state["positions"][ticker] = {
                                     "side": "yes",
                                     "entry_price": limite_yes,
@@ -709,7 +714,7 @@ def poll_once(client, state, bot_token, chat_id):
                             if no_ask_jump is not None and no_ask_jump > MAX_ASK_JUMP_CENTS:
                                 print(f"[INFO] {series}: entrada BAJA descartada, el ask salto {no_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
-                                limite_no = max(1, no_ask - LIMIT_OFFSET_CENTS)
+                                limite_no = min(99, no_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
                                 state["positions"][ticker] = {
                                     "side": "no",
                                     "entry_price": limite_no,
