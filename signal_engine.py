@@ -708,6 +708,13 @@ def poll_once(client, state, bot_token, chat_id):
                         if pct_move > 0 and yes_ask is not None and MIN_ENTRY_PRICE <= yes_ask <= MAX_ENTRY_PRICE:
                             if yes_ask_jump is not None and yes_ask_jump > MAX_ASK_JUMP_CENTS:
                                 print(f"[INFO] {series}: entrada SUBE descartada, el ask salto {yes_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
+                            elif yes_ask + LIMIT_SLIPPAGE_BUFFER_CENTS > MAX_ENTRY_PRICE:
+                                # El ask por si solo pasaba el filtro, pero sumandole el
+                                # colchon de la orden limite el precio real de entrada
+                                # quedaria pegado al techo de 99c, sin espacio real para
+                                # un 10% de ganancia (ver bug reportado: ask 87c -> limite
+                                # 97c -> "objetivo" 99c, un 2% real disfrazado de 10%).
+                                print(f"[INFO] {series}: entrada SUBE descartada, ask {yes_ask}c + colchon {LIMIT_SLIPPAGE_BUFFER_CENTS}c no deja espacio real para el 10% (limite pasaria de {MAX_ENTRY_PRICE}c)")
                             else:
                                 limite_yes = min(99, yes_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
                                 state["positions"][ticker] = {
@@ -733,6 +740,8 @@ def poll_once(client, state, bot_token, chat_id):
                         elif pct_move < 0 and no_ask is not None and MIN_ENTRY_PRICE <= no_ask <= MAX_ENTRY_PRICE:
                             if no_ask_jump is not None and no_ask_jump > MAX_ASK_JUMP_CENTS:
                                 print(f"[INFO] {series}: entrada BAJA descartada, el ask salto {no_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
+                            elif no_ask + LIMIT_SLIPPAGE_BUFFER_CENTS > MAX_ENTRY_PRICE:
+                                print(f"[INFO] {series}: entrada BAJA descartada, ask {no_ask}c + colchon {LIMIT_SLIPPAGE_BUFFER_CENTS}c no deja espacio real para el 10% (limite pasaria de {MAX_ENTRY_PRICE}c)")
                             else:
                                 limite_no = min(99, no_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
                                 state["positions"][ticker] = {
