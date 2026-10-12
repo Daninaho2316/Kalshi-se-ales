@@ -26,6 +26,8 @@ import math
 import os
 import subprocess
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -56,6 +58,19 @@ MOMENTUM_THRESHOLD = {
     "KXBTC15M": 0.0004,  # 0.04%
     "KXETH15M": 0.0006,  # 0.06%
 }
+
+# Par de Kraken (exchange real, API publica, sin API key) para traer velas
+# OHLC de 1 minuto y calcular indicadores tecnicos (EMA/RSI/ADX) -- CF
+# Benchmarks solo da el valor puntual del indice, sin historial ni volumen,
+# asi que para EMA/RSI/ADX hace falta una serie de velas de un exchange real.
+KRAKEN_PAIR = {
+    "KXBTC15M": "XBTUSD",
+    "KXETH15M": "ETHUSD",
+}
+
+INDICATOR_CACHE_SECONDS = 30  # no hace falta pedir velas nuevas cada 8s: una
+                               # vela de 1 min no cambia tanto en ese rato, y
+                               # asi se cuida la API publica de Kraken
 
 ROI_TARGET = 0.10          # 10% de ganancia sobre el precio de entrada
 MAX_ENTRY_PRICE = 90       # no entrar si el precio ya esta tan alto que un 10% es matematicamente
@@ -265,6 +280,154 @@ def contract_prices(market: dict):
     return yes_bid, yes_ask, no_bid, no_ask
 
 
+_klines_cache = {}  # series -> (timestamp_local, closes, highs, lows)
+
+
+def get_klines(pair, interval=1, retries=2):
+    """Trae velas OHLC publicas de Kraken (sin API key) para un par tipo
+    XBTUSD. interval en minutos. Devuelve (closes, highs, lows) como listas,
+    de la mas vieja a la mas nueva."""
+    url = f"https://api.kraken.com/0/public/OHLC?pair={pair}&interval={interval}"
+    ultimo_error = None
+    for intento in range(retries):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "kalshi-signal-bot"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+            if data.get("error"):
+                raise ValueError(str(data["error"]))
+            result = data["result"]
+            clave = next(k for k in result if k != "last")
+            velas = result[clave]
+            closes = [float(v[4]) for v in velas]
+            highs = [float(v[2]) for v in velas]
+            lows = [float(v[3]) for v in velas]
+            return closes, highs, lows
+        except Exception as e:
+            ultimo_error = e
+            time.sleep(1)
+    raise ultimo_error
+
+
+def _ema(valores, periodo):
+    if len(valores) < periodo:
+        return None
+    k = 2 / (periodo + 1)
+    e = sum(valores[:periodo]) / periodo
+    for v in valores[periodo:]:
+        e = v * k + e * (1 - k)
+    return e
+
+
+def _rsi(valores, periodo=14):
+    if len(valores) < periodo + 1:
+        return None
+    deltas = [valores[i] - valores[i - 1] for i in range(1, len(valores))]
+    ganancias = [d if d > 0 else 0 for d in deltas]
+    perdidas = [-d if d < 0 else 0 for d in deltas]
+    avg_g = sum(ganancias[:periodo]) / periodo
+    avg_p = sum(perdidas[:periodo]) / periodo
+    for i in range(periodo, len(ganancias)):
+        avg_g = (avg_g * (periodo - 1) + ganancias[i]) / periodo
+        avg_p = (avg_p * (periodo - 1) + perdidas[i]) / periodo
+    if avg_p == 0:
+        return 100.0
+    rs = avg_g / avg_p
+    return 100 - (100 / (1 + rs))
+
+
+def _adx(highs, lows, closes, periodo=14):
+    if len(closes) < periodo * 2:
+        return None
+    plus_dm, minus_dm, trs = [], [], []
+    for i in range(1, len(closes)):
+        subida = highs[i] - highs[i - 1]
+        bajada = lows[i - 1] - lows[i]
+        plus_dm.append(subida if (subida > bajada and subida > 0) else 0)
+        minus_dm.append(bajada if (bajada > subida and bajada > 0) else 0)
+        tr = max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1]))
+        trs.append(tr)
+
+    def suavizar(serie, periodo):
+        s = [sum(serie[:periodo])]
+        for v in serie[periodo:]:
+            s.append(s[-1] - (s[-1] / periodo) + v)
+        return s
+
+    tr_s = suavizar(trs, periodo)
+    plus_s = suavizar(plus_dm, periodo)
+    minus_s = suavizar(minus_dm, periodo)
+    plus_di = [100 * p / t if t else 0 for p, t in zip(plus_s, tr_s)]
+    minus_di = [100 * m / t if t else 0 for m, t in zip(minus_s, tr_s)]
+    dx = [100 * abs(p - m) / (p + m) if (p + m) else 0 for p, m in zip(plus_di, minus_di)]
+    if len(dx) < periodo:
+        return None
+    adx_val = sum(dx[:periodo]) / periodo
+    for d in dx[periodo:]:
+        adx_val = (adx_val * (periodo - 1) + d) / periodo
+    return adx_val
+
+
+def sesgo_tecnico(series):
+    """Lee velas reales de 1 min del exchange (Kraken) y calcula EMA 10/55/200,
+    RSI 14 y ADX 14 -- la misma lectura que usan traders tipo TradingLatino
+    para confirmar si de verdad hay tendencia o el mercado esta sin rumbo.
+    Devuelve (sesgo, detalle) donde sesgo es 'sube' / 'baja' / 'neutral', y
+    detalle es un dict con los valores (o {} si no se pudo calcular).
+    Con cache de INDICATOR_CACHE_SECONDS para no golpear la API en cada
+    lectura de 8s."""
+    ahora = time.time()
+    cache = _klines_cache.get(series)
+    if cache and (ahora - cache[0]) < INDICATOR_CACHE_SECONDS:
+        closes, highs, lows = cache[1], cache[2], cache[3]
+    else:
+        pair = KRAKEN_PAIR.get(series)
+        if not pair:
+            return "neutral", {}
+        try:
+            closes, highs, lows = get_klines(pair, interval=1)
+        except Exception as e:
+            print(f"[WARN] {series}: no se pudieron leer velas de Kraken para indicadores ({e})")
+            if cache:
+                closes, highs, lows = cache[1], cache[2], cache[3]
+            else:
+                return "neutral", {}
+        else:
+            _klines_cache[series] = (ahora, closes, highs, lows)
+
+    if len(closes) < 60:
+        return "neutral", {}
+
+    precio = closes[-1]
+    ema10 = _ema(closes, 10)
+    ema55 = _ema(closes, 55)
+    ema200 = _ema(closes, 200) if len(closes) >= 200 else None
+    r = _rsi(closes, 14)
+    a = _adx(highs, lows, closes, 14)
+    detalle = {"ema10": ema10, "ema55": ema55, "ema200": ema200, "rsi": r, "adx": a}
+
+    puntos = 0
+    if ema10 is not None and ema55 is not None:
+        puntos += 1 if ema10 > ema55 else (-1 if ema10 < ema55 else 0)
+    if ema200 is not None:
+        puntos += 1 if precio > ema200 else (-1 if precio < ema200 else 0)
+    if r is not None:
+        puntos += 1 if r > 55 else (-1 if r < 45 else 0)
+
+    # ADX mide fuerza de tendencia, no direccion: si esta bajo, el mercado
+    # esta lateral y no conviene confiar en la lectura de los otros aunque
+    # den algo -- es la misma logica "sin ventaja clara" del panel del
+    # usuario cuando el ADX viene bajo.
+    fuerza_ok = a is not None and a >= 18
+    if not fuerza_ok:
+        return "neutral", detalle
+    if puntos >= 2:
+        return "sube", detalle
+    elif puntos <= -2:
+        return "baja", detalle
+    return "neutral", detalle
+
+
 def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, roi):
     activo = series.replace("KX", "").replace("15M", "")
     direccion = "SUBE" if lado == "yes" else "BAJA"
@@ -285,7 +448,7 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
         print(f"[WARN] No se pudo enviar Telegram: {e}")
 
 
-def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, underlying_price):
+def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, underlying_price, sesgo=None, sesgo_detalle=None):
     activo = series.replace("KX", "").replace("15M", "")
     if lado == "yes":
         direccion = "SUBE"
@@ -294,6 +457,15 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
         direccion = "BAJA"
         cabecera = "🔴⬇️🔴⬇️🔴⬇️"
     objetivo = min(99, max(entry_price + 1, math.ceil(entry_price * 1.10)))
+    linea_tecnica = ""
+    if sesgo_detalle:
+        r = sesgo_detalle.get("rsi")
+        a = sesgo_detalle.get("adx")
+        e10 = sesgo_detalle.get("ema10")
+        e55 = sesgo_detalle.get("ema55")
+        if r is not None and a is not None and e10 is not None and e55 is not None:
+            stack = "EMA10>EMA55" if e10 > e55 else "EMA10<EMA55"
+            linea_tecnica = f"Sesgo técnico: {sesgo} (RSI {r:.0f}, ADX {a:.0f}, {stack})\n"
     texto = (
         f"{cabecera}\n"
         f"<b>ENTRADA KALSHI — {activo}</b>\n"
@@ -302,6 +474,7 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
         f"Lado: {direccion}\n"
         f"Precio de ENTRADA: <b>{entry_price}¢</b>\n"
         f"Precio de SALIDA (objetivo, 10%): <b>{objetivo}¢</b>\n"
+        f"{linea_tecnica}"
         f"Enviado: {hora_atlanta()} (hora Atlanta)"
     )
     try:
@@ -474,8 +647,18 @@ def poll_once(client, state, bot_token, chat_id):
                     pct_move = (hist[-1] - base) / base
                     threshold = MOMENTUM_THRESHOLD.get(series, 0.0005)
                     if abs(pct_move) >= threshold:
+                        # Indicadores tecnicos (EMA/RSI/ADX) sobre velas reales de
+                        # Kraken, como confirmacion extra de que el movimiento del
+                        # activo es una tendencia de verdad y no ruido -- si fallan
+                        # (sesgo_detalle vacio) NO se bloquea la entrada, se sigue
+                        # como antes (sin esta capa).
+                        sesgo, sesgo_detalle = sesgo_tecnico(series)
+                        indicadores_ok = bool(sesgo_detalle)
+
                         if pct_move > 0 and yes_ask is not None and MIN_ENTRY_PRICE <= yes_ask <= MAX_ENTRY_PRICE:
-                            if yes_ask_jump is not None and yes_ask_jump > MAX_ASK_JUMP_CENTS:
+                            if indicadores_ok and sesgo != "sube":
+                                print(f"[INFO] {series}: entrada SUBE descartada, sesgo tecnico = {sesgo} (no confirma)")
+                            elif yes_ask_jump is not None and yes_ask_jump > MAX_ASK_JUMP_CENTS:
                                 print(f"[INFO] {series}: entrada SUBE descartada, el ask salto {yes_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
                                 state["positions"][ticker] = {
@@ -489,6 +672,7 @@ def poll_once(client, state, bot_token, chat_id):
                                 send_entry_signal(
                                     bot_token, chat_id, series=series, ticker=ticker,
                                     lado="yes", entry_price=yes_ask, underlying_price=underlying_price,
+                                    sesgo=sesgo, sesgo_detalle=sesgo_detalle,
                                 )
                                 log_row({
                                     "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
@@ -498,7 +682,9 @@ def poll_once(client, state, bot_token, chat_id):
                                     "segundos_restantes_cierre": remaining_s,
                                 })
                         elif pct_move < 0 and no_ask is not None and MIN_ENTRY_PRICE <= no_ask <= MAX_ENTRY_PRICE:
-                            if no_ask_jump is not None and no_ask_jump > MAX_ASK_JUMP_CENTS:
+                            if indicadores_ok and sesgo != "baja":
+                                print(f"[INFO] {series}: entrada BAJA descartada, sesgo tecnico = {sesgo} (no confirma)")
+                            elif no_ask_jump is not None and no_ask_jump > MAX_ASK_JUMP_CENTS:
                                 print(f"[INFO] {series}: entrada BAJA descartada, el ask salto {no_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
                                 state["positions"][ticker] = {
@@ -512,6 +698,7 @@ def poll_once(client, state, bot_token, chat_id):
                                 send_entry_signal(
                                     bot_token, chat_id, series=series, ticker=ticker,
                                     lado="no", entry_price=no_ask, underlying_price=underlying_price,
+                                    sesgo=sesgo, sesgo_detalle=sesgo_detalle,
                                 )
                                 log_row({
                                     "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
