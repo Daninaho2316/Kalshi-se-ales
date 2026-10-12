@@ -464,7 +464,13 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
         e10 = sesgo_detalle.get("ema10")
         e55 = sesgo_detalle.get("ema55")
         if r is not None and a is not None and e10 is not None and e55 is not None:
-            stack = "EMA10>EMA55" if e10 > e55 else "EMA10<EMA55"
+            # OJO: nunca meter "<" o ">" sueltos en un mensaje de Telegram con
+            # parse_mode=HTML -- Telegram intenta leerlo como una etiqueta HTML
+            # y si no la reconoce (como "<EMA55") rechaza el mensaje ENTERO con
+            # un error 400 que el bot solo loggea (no se nota en Telegram, el
+            # mensaje de ENTRADA simplemente nunca llega). Por eso texto plano,
+            # nada de simbolos < >.
+            stack = "EMA10 sobre EMA55" if e10 > e55 else "EMA10 bajo EMA55"
             linea_tecnica = f"Sesgo técnico: {sesgo} (RSI {r:.0f}, ADX {a:.0f}, {stack})\n"
     texto = (
         f"{cabecera}\n"
