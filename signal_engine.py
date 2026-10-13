@@ -72,27 +72,33 @@ INDICATOR_CACHE_SECONDS = 30  # no hace falta pedir velas nuevas cada 8s: una
                                # vela de 1 min no cambia tanto en ese rato, y
                                # asi se cuida la API publica de Kraken
 
-ROI_TARGET = 0.10          # 10% de ganancia sobre el precio de entrada
+ROI_TARGET = 0.20          # SUBIDO de 10% a 20% (2026-10-13, quinto ajuste): el usuario hizo
+                           # notar que arriesgar 20-30% en el corte de perdida para ganar solo
+                           # 7-10% en el objetivo es incoherente -- "hay que ser un poco mas
+                           # agresivo en las ganancias como lo son ellos para las perdidas". Subir
+                           # la meta de ganancia (sin tocar el tope de seguridad del objetivo, ver
+                           # OBJETIVO_MAX_CENTS) deja un riesgo:ganancia mucho mas razonable.
 
-OBJETIVO_MAX_CENTS = 90    # tope duro para el precio de SALIDA (objetivo), sin importar que tan
-                           # alto sea el precio de entrada. Por datos reales, un objetivo de 94c+
-                           # se pega cerca del techo y tarda mucho mas en llegar (o no llega y se
-                           # fuerza el cierre sin ganancia). BAJADO de 93 a 90 (2026-10-13, cuarto
-                           # ajuste): con 93 el usuario reporto entradas que SI pasaban el chequeo
-                           # de MIN_ROOM_CENTS pero quedaban en el borde (ej. limite 88 -> objetivo
-                           # 93, solo 5.7% real) -- muy poco margen para que valga la pena. El
-                           # usuario pidio directamente: entrada ideal entre 70-80c, salida hasta
-                           # 90c.
+OBJETIVO_MAX_CENTS = 93    # tope duro para el precio de SALIDA (objetivo), sin importar que tan
+                           # alto sea el precio de entrada. Por datos reales (662 pares del
+                           # historial), un objetivo de 94c+ es cuando se pega cerca del techo y
+                           # tarda mucho mas en llegar (o no llega y se fuerza el cierre sin
+                           # ganancia) -- en 90-93c el cierre forzado es ~0%, el problema real
+                           # empieza en 94c. Vuelto a 93 (el techo real segun los datos, no 90)
+                           # ahora que el filtro de ganancia minima (ver MIN_ROOM_PCT) se encarga
+                           # de descartar los casos al borde con poco margen, en vez de bajar el
+                           # techo para todos.
 
-MIN_ROOM_CENTS = 5         # el objetivo (capado a OBJETIVO_MAX_CENTS) tiene que dejar AL MENOS
-                           # esto de espacio real por encima del precio de entrada (el limite con
-                           # colchon, que es lo que de verdad se puede llegar a pagar). Bug real
-                           # visto (2026-10-13): con el objetivo capado a 93 pero sin este chequeo,
-                           # una entrada con limite ya cerca de 93-94 terminaba con un "objetivo"
-                           # IGUAL O MENOR al tope de la orden limite -- si el usuario pagaba cerca
-                           # del tope, vender en el "objetivo" era perder dinero, no ganar. Ahora
-                           # esa entrada simplemente se descarta en vez de mandar un aviso que no
-                           # garantiza ganancia real.
+MIN_ROOM_PCT = 0.08        # el objetivo (capado a OBJETIVO_MAX_CENTS) tiene que dejar AL MENOS
+                           # este % de ganancia real por encima del precio de entrada (el limite
+                           # con colchon, que es lo que de verdad se puede llegar a pagar) --
+                           # antes era un tope fijo en centavos (MIN_ROOM_CENTS=5), pero eso dejaba
+                           # pasar casos como limite 88 -> objetivo 93 (solo 5.7% real, muy poco
+                           # margen para que valga la pena). Con un % minimo en vez de centavos
+                           # fijos, el filtro es consistente sin importar el nivel de precio. Bug
+                           # real que esto tambien evita (visto 2026-10-13): si el objetivo quedaba
+                           # igual o por debajo del limite, vender ahi podia ser perder dinero, no
+                           # ganar -- ahora esa entrada simplemente se descarta.
 
 LIMIT_SLIPPAGE_BUFFER_CENTS = 10  # un limite 2c POR DEBAJO del ask (como se
                            # probo primero) casi nunca se llena en un movimiento
@@ -538,8 +544,8 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
     # del 2026-10-13: ask 79 -> limite 94 -> "objetivo" 87, vender mas barato
     # de lo que pudo haber costado). El objetivo se capa a OBJETIVO_MAX_CENTS
     # para no entrar en la zona pegajosa cerca del techo del contrato, y
-    # poll_once() ya se asegura de que quede al menos MIN_ROOM_CENTS de
-    # espacio real antes de abrir la posicion.
+    # poll_once() ya se asegura de que quede al menos MIN_ROOM_PCT de
+    # ganancia real antes de abrir la posicion.
     objetivo = min(OBJETIVO_MAX_CENTS, max(entry_price + 1, math.ceil(entry_price * 1.10)))
     linea_tecnica = ""
     if sesgo_detalle:
@@ -755,13 +761,15 @@ def poll_once(client, state, bot_token, chat_id):
                                 print(f"[INFO] {series}: entrada SUBE descartada, el ask salto {yes_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
                                 limite_yes = min(99, yes_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
-                                if limite_yes + MIN_ROOM_CENTS > OBJETIVO_MAX_CENTS:
+                                objetivo_yes_posible = min(OBJETIVO_MAX_CENTS, max(limite_yes + 1, math.ceil(limite_yes * (1 + ROI_TARGET))))
+                                ganancia_yes_pct = (objetivo_yes_posible - limite_yes) / limite_yes
+                                if ganancia_yes_pct < MIN_ROOM_PCT:
                                     # El limite (lo que de verdad se podria pagar) ya
-                                    # no deja espacio real por debajo del objetivo
-                                    # maximo -- descartar en vez de mandar un
-                                    # "objetivo" que podria quedar igual o por debajo
-                                    # de lo pagado.
-                                    print(f"[INFO] {series}: entrada SUBE descartada, limite {limite_yes}c no deja {MIN_ROOM_CENTS}c de espacio real antes de {OBJETIVO_MAX_CENTS}c")
+                                    # no deja suficiente ganancia real hasta el
+                                    # objetivo maximo -- descartar en vez de mandar
+                                    # un aviso con muy poco margen (o que podria
+                                    # quedar igual o por debajo de lo pagado).
+                                    print(f"[INFO] {series}: entrada SUBE descartada, limite {limite_yes}c solo deja {ganancia_yes_pct*100:.1f}% real (< {MIN_ROOM_PCT*100:.0f}%)")
                                 else:
                                     state["positions"][ticker] = {
                                         "side": "yes",
@@ -788,8 +796,10 @@ def poll_once(client, state, bot_token, chat_id):
                                 print(f"[INFO] {series}: entrada BAJA descartada, el ask salto {no_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
                                 limite_no = min(99, no_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
-                                if limite_no + MIN_ROOM_CENTS > OBJETIVO_MAX_CENTS:
-                                    print(f"[INFO] {series}: entrada BAJA descartada, limite {limite_no}c no deja {MIN_ROOM_CENTS}c de espacio real antes de {OBJETIVO_MAX_CENTS}c")
+                                objetivo_no_posible = min(OBJETIVO_MAX_CENTS, max(limite_no + 1, math.ceil(limite_no * (1 + ROI_TARGET))))
+                                ganancia_no_pct = (objetivo_no_posible - limite_no) / limite_no
+                                if ganancia_no_pct < MIN_ROOM_PCT:
+                                    print(f"[INFO] {series}: entrada BAJA descartada, limite {limite_no}c solo deja {ganancia_no_pct*100:.1f}% real (< {MIN_ROOM_PCT*100:.0f}%)")
                                 else:
                                     state["positions"][ticker] = {
                                         "side": "no",
