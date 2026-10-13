@@ -129,18 +129,22 @@ LIMIT_SLIPPAGE_BUFFER_CENTS = 10  # un limite 2c POR DEBAJO del ask (como se
                            # de lo que pudiste haber pagado). Con 10 de colchon y el
                            # chequeo de espacio minimo (ver mas abajo) eso ya no
                            # puede pasar.
-MAX_ENTRY_PRICE = 80       # BAJADO de 90 a 84 y luego a 80 (2026-10-12/13): el usuario reporto
-                           # (con datos reales revisados) que cuando el objetivo de salida queda
-                           # entre 94-99c, el precio se "pega" cerca del techo y tarda muchisimo en
-                           # llegar -- a esos niveles el contrato ya esta casi en 100% de certeza y
-                           # se mueve en fracciones de centavo por vez, por mas tiempo que le quede
-                           # al ciclo. Confirmado en los 662 pares del historial: con objetivo < 94c
-                           # el cierre forzado (sin llegar a la meta) es casi 0%; con objetivo entre
-                           # 94-99c sube a 11-14%. Ajustado de nuevo (80) junto con OBJETIVO_MAX_CENTS
-                           # a pedido directo del usuario: entrada ideal entre 70-80c, salida hasta
-                           # 90c -- con el colchon (10c) y el objetivo capado a 90c, esto deja un
-                           # rango real de ask ~70-75c con 7-10% de ganancia real, en vez de casos
-                           # al borde con apenas 5-6%.
+MAX_ENTRY_PRICE = 70       # BAJADO de 90 a 84, a 80, y ahora a 70 (2026-10-12/13): el usuario
+                           # reporto (con datos reales revisados) que cuando el objetivo de salida
+                           # queda entre 94-99c, el precio se "pega" cerca del techo y tarda
+                           # muchisimo en llegar -- a esos niveles el contrato ya esta casi en 100%
+                           # de certeza y se mueve en fracciones de centavo por vez, por mas tiempo
+                           # que le quede al ciclo. Confirmado en los 662 pares del historial: con
+                           # objetivo < 94c el cierre forzado (sin llegar a la meta) es casi 0%; con
+                           # objetivo entre 94-99c sube a 11-14%.
+                           # 2026-10-13 (decimo ajuste): con la comision de Kalshi ya restada del
+                           # calculo del objetivo (ver calcular_objetivo), la banda 70-80 dejaba de
+                           # cumplir el 10% NETO para ask 75c en adelante -- casi no llegaban
+                           # señales. El usuario pidio bajar la banda ideal a 60-65 para dejar mas
+                           # espacio real antes del tope de 93c; se quedo en 65-70 (punto medio) para
+                           # no entrar en la zona de 20-60c donde los movimientos se resuelven en
+                           # 32-41 segundos (ver MIN_ENTRY_PRICE) -- demasiado rapido para poner la
+                           # orden a mano, y ese mismo apuro es lo que agranda las perdidas.
 
 # No entrar si el precio ya esta tan BAJO que el mercado practicamente ya
 # descarto ese lado (ej. 3c = el mercado le da ~3% de probabilidad). A esos
@@ -150,24 +154,22 @@ MAX_ENTRY_PRICE = 80       # BAJADO de 90 a 84 y luego a 80 (2026-10-12/13): el 
 # precio, no por un movimiento real — y es jugar contra un consenso de
 # mercado muy fuerte. Visto en datos reales: entrada en ETH a 3c, corte de
 # perdida casi inmediato a 2c.
-MIN_ENTRY_PRICE = 70   # SUBIDO de 20 a 70 (2026-10-12): analizando los 653 pares entrada->salida
-                       # del historial real, el tiempo que una entrada tarda en llegar a su
-                       # objetivo (10%) o a su corte de perdida depende muchisimo del precio de
-                       # entrada:
+MIN_ENTRY_PRICE = 65   # SUBIDO de 20 a 70 (2026-10-12), luego BAJADO de 70 a 65 (2026-10-13,
+                       # decimo ajuste). Analizando los 653 pares entrada->salida del historial
+                       # real, el tiempo que una entrada tarda en llegar a su objetivo o a su
+                       # corte de perdida depende muchisimo del precio de entrada:
                        #   entrada 20-60c -> tiempo mediano hasta salir: 32-41 SEGUNDOS
                        #   entrada 70c    -> tiempo mediano: 66s
                        #   entrada 80c    -> tiempo mediano: 171s (casi 3 min)
                        #   entrada 90c    -> tiempo mediano: 319s (mas de 5 min)
                        # Con entradas de 20-60c, para cuando el usuario ve la alerta de Telegram,
                        # desbloquea el telefono y abre Kalshi, en muchos casos el movimiento YA
-                       # TERMINO (10-40s es menos tiempo del que toma ese proceso a mano). Por
-                       # eso ningun buffer de centavos arregla "nos perdemos todas las entradas":
-                       # no es un problema de precio, es que la ventana para actuar es demasiado
-                       # corta para una compra manual. Subiendo el minimo a 70c, la ventana
-                       # mediana real sube a 100s+ (y crece todavia mas en 80-90c), sin bajar el
-                       # win rate (85-91% en esos rangos, igual o mejor que el promedio general
-                       # de 87%). Cuesta frecuencia (menos avisos por dia) pero gana que los
-                       # avisos que SI llegan sean realmente ejecutables a mano.
+                       # TERMINO -- no es un problema de precio, es que la ventana para actuar es
+                       # demasiado corta para una compra manual. El usuario pidio bajar la banda
+                       # ideal a 60-65c (para tener mas espacio real antes del tope de 93c, ahora
+                       # que la comision de Kalshi se resta del calculo); se quedo en 65-70 como
+                       # punto medio -- mas barato que 70-80, pero sin meterse en la zona de
+                       # 32-41 segundos de 20-60c.
 
 # No abrir una entrada nueva si al ciclo de 15 min le quedan menos de esto.
 # Motivo (visto en los datos reales): varias perdidas fueron entradas tardias
