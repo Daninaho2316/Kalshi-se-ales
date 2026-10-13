@@ -74,6 +74,13 @@ INDICATOR_CACHE_SECONDS = 30  # no hace falta pedir velas nuevas cada 8s: una
 
 ROI_TARGET = 0.10          # 10% de ganancia sobre el precio de entrada
 
+OBJETIVO_MAX_CENTS = 93    # tope duro para el precio de SALIDA (objetivo), sin importar que tan
+                           # alto sea el ask de entrada. Ver MAX_ENTRY_PRICE: por datos reales, un
+                           # objetivo de 94c+ se pega cerca del techo y tarda mucho mas en llegar
+                           # (o no llega y se fuerza el cierre sin ganancia). Con MAX_ENTRY_PRICE=84
+                           # este tope casi nunca se activa (84*1.10=93 ya es el limite natural),
+                           # pero queda como red de seguridad.
+
 LIMIT_SLIPPAGE_BUFFER_CENTS = 15  # un limite 2c POR DEBAJO del ask (como se
                            # probo primero) casi nunca se llena en un movimiento
                            # de momentum real: el precio normalmente SIGUE
@@ -90,8 +97,17 @@ LIMIT_SLIPPAGE_BUFFER_CENTS = 15  # un limite 2c POR DEBAJO del ask (como se
                            # ese momento, nunca al tope; el tope solo evita que la
                            # orden se rechace o quede sin llenar si el precio ya
                            # corrio durante el tiempo de reaccion humana.
-MAX_ENTRY_PRICE = 90       # no entrar si el precio ya esta tan alto que un 10% es matematicamente
-                           # imposible (el contrato nunca pasa de 99-100c); 90c*1.10=99c, el limite exacto
+MAX_ENTRY_PRICE = 84       # BAJADO de 90 a 84 (2026-10-12, segundo ajuste): el usuario reporto
+                           # (con datos reales revisados) que cuando el objetivo de salida queda
+                           # entre 94-99c, el precio se "pega" cerca del techo y tarda muchisimo en
+                           # llegar -- a esos niveles el contrato ya esta casi en 100% de certeza y
+                           # se mueve en fracciones de centavo por vez, por mas tiempo que le quede
+                           # al ciclo. Confirmado en los 662 pares del historial: con objetivo < 94c
+                           # el cierre forzado (sin llegar a la meta) es casi 0%; con objetivo entre
+                           # 94-99c sube a 11-14%. Por eso ahora el objetivo se calcula sobre el ASK
+                           # real (no sobre el limite con colchon, ver OBJETIVO_MAX_CENTS mas abajo),
+                           # y el ask maximo de entrada baja a 84c para que ni en el techo de la banda
+                           # el objetivo (84*1.10=93c) entre en esa zona pegajosa.
 
 # No entrar si el precio ya esta tan BAJO que el mercado practicamente ya
 # descarto ese lado (ej. 3c = el mercado le da ~3% de probabilidad). A esos
@@ -481,7 +497,7 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
         print(f"[WARN] No se pudo enviar Telegram: {e}")
 
 
-def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, ask_actual, underlying_price, sesgo=None, sesgo_detalle=None):
+def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, limite_sugerido, underlying_price, sesgo=None, sesgo_detalle=None):
     activo = series.replace("KX", "").replace("15M", "")
     if lado == "yes":
         direccion = "SUBE"
@@ -489,13 +505,16 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
     else:
         direccion = "BAJA"
         cabecera = "🔴⬇️🔴⬇️🔴⬇️"
-    # entry_price aqui YA es el precio limite sugerido (lo que se asume que
-    # el usuario termina pagando) -- lo calcula poll_once() y es lo mismo
-    # que queda guardado en la posicion para medir el 10%/corte de perdida,
-    # asi todo el seguimiento de ahi en adelante es consistente con el
-    # precio real de la orden limite, no con el ask (ya viejo) del momento
-    # en que se detecto el movimiento.
-    objetivo = min(99, max(entry_price + 1, math.ceil(entry_price * 1.10)))
+    # entry_price aqui es el ASK real observado (no el limite con colchon).
+    # Antes el objetivo y todo el seguimiento de ganancia/perdida se media
+    # contra el limite (ask + colchon), y eso empujaba el objetivo muy cerca
+    # del techo de 99c en entradas de ask alto (ej. ask 87 -> limite 97 ->
+    # "objetivo 10%" 99, un 2% real disfrazado de 10%, y ademas esa zona
+    # pegada al techo se mueve muy lento -- ver OBJETIVO_MAX_CENTS). El
+    # colchon (limite_sugerido) sigue existiendo, pero ahora es SOLO el tope
+    # de seguridad que se le dice al usuario para la orden limite -- no se
+    # usa para calcular el objetivo ni para medir el 10%/corte de perdida.
+    objetivo = min(OBJETIVO_MAX_CENTS, max(entry_price + 1, math.ceil(entry_price * 1.10)))
     linea_tecnica = ""
     if sesgo_detalle:
         r = sesgo_detalle.get("rsi")
@@ -517,9 +536,9 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
         f"{cabecera}\n"
         f"Mercado: 15 min\n"
         f"Lado: {direccion}\n"
-        f"Precio actual (ask): {ask_actual}¢\n"
-        f"👉 Pon ORDEN LÍMITE a: <b>{entry_price}¢</b> (tope maximo -- se llena casi al toque aunque el precio ya haya corrido, nunca pagas mas)\n"
-        f"Precio de SALIDA (objetivo, 10% desde el límite): <b>{objetivo}¢</b>\n"
+        f"Precio actual (ask): {entry_price}¢\n"
+        f"👉 Si no se llena de una, pon ORDEN LÍMITE a: <b>{limite_sugerido}¢</b> (tope maximo -- normalmente se llena mas cerca del ask, nunca pagas mas de esto)\n"
+        f"Precio de SALIDA (objetivo): <b>{objetivo}¢</b>\n"
         f"{linea_tecnica}"
         f"Enviado: {hora_atlanta()} (hora Atlanta)"
     )
@@ -708,18 +727,12 @@ def poll_once(client, state, bot_token, chat_id):
                         if pct_move > 0 and yes_ask is not None and MIN_ENTRY_PRICE <= yes_ask <= MAX_ENTRY_PRICE:
                             if yes_ask_jump is not None and yes_ask_jump > MAX_ASK_JUMP_CENTS:
                                 print(f"[INFO] {series}: entrada SUBE descartada, el ask salto {yes_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
-                            elif yes_ask + LIMIT_SLIPPAGE_BUFFER_CENTS > MAX_ENTRY_PRICE:
-                                # El ask por si solo pasaba el filtro, pero sumandole el
-                                # colchon de la orden limite el precio real de entrada
-                                # quedaria pegado al techo de 99c, sin espacio real para
-                                # un 10% de ganancia (ver bug reportado: ask 87c -> limite
-                                # 97c -> "objetivo" 99c, un 2% real disfrazado de 10%).
-                                print(f"[INFO] {series}: entrada SUBE descartada, ask {yes_ask}c + colchon {LIMIT_SLIPPAGE_BUFFER_CENTS}c no deja espacio real para el 10% (limite pasaria de {MAX_ENTRY_PRICE}c)")
                             else:
                                 limite_yes = min(99, yes_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
                                 state["positions"][ticker] = {
                                     "side": "yes",
-                                    "entry_price": limite_yes,
+                                    "entry_price": yes_ask,
+                                    "limite_sugerido": limite_yes,
                                     "entry_time": now_iso(),
                                     "underlying_entry": underlying_price,
                                     "series": series,
@@ -727,26 +740,25 @@ def poll_once(client, state, bot_token, chat_id):
                                 }
                                 send_entry_signal(
                                     bot_token, chat_id, series=series, ticker=ticker,
-                                    lado="yes", entry_price=limite_yes, ask_actual=yes_ask, underlying_price=underlying_price,
+                                    lado="yes", entry_price=yes_ask, limite_sugerido=limite_yes, underlying_price=underlying_price,
                                     sesgo=sesgo, sesgo_detalle=sesgo_detalle,
                                 )
                                 log_row({
                                     "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
                                     "evento": "entrada_detectada", "lado": "yes",
-                                    "precio_entrada_c": limite_yes, "precio_actual_c": "", "roi_pct": "",
+                                    "precio_entrada_c": yes_ask, "precio_actual_c": "", "roi_pct": "",
                                     "activo_en_entrada": underlying_price, "activo_ahora": "",
                                     "segundos_restantes_cierre": remaining_s,
                                 })
                         elif pct_move < 0 and no_ask is not None and MIN_ENTRY_PRICE <= no_ask <= MAX_ENTRY_PRICE:
                             if no_ask_jump is not None and no_ask_jump > MAX_ASK_JUMP_CENTS:
                                 print(f"[INFO] {series}: entrada BAJA descartada, el ask salto {no_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
-                            elif no_ask + LIMIT_SLIPPAGE_BUFFER_CENTS > MAX_ENTRY_PRICE:
-                                print(f"[INFO] {series}: entrada BAJA descartada, ask {no_ask}c + colchon {LIMIT_SLIPPAGE_BUFFER_CENTS}c no deja espacio real para el 10% (limite pasaria de {MAX_ENTRY_PRICE}c)")
                             else:
                                 limite_no = min(99, no_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
                                 state["positions"][ticker] = {
                                     "side": "no",
-                                    "entry_price": limite_no,
+                                    "entry_price": no_ask,
+                                    "limite_sugerido": limite_no,
                                     "entry_time": now_iso(),
                                     "underlying_entry": underlying_price,
                                     "series": series,
@@ -754,13 +766,13 @@ def poll_once(client, state, bot_token, chat_id):
                                 }
                                 send_entry_signal(
                                     bot_token, chat_id, series=series, ticker=ticker,
-                                    lado="no", entry_price=limite_no, ask_actual=no_ask, underlying_price=underlying_price,
+                                    lado="no", entry_price=no_ask, limite_sugerido=limite_no, underlying_price=underlying_price,
                                     sesgo=sesgo, sesgo_detalle=sesgo_detalle,
                                 )
                                 log_row({
                                     "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
                                     "evento": "entrada_detectada", "lado": "no",
-                                    "precio_entrada_c": limite_no, "precio_actual_c": "", "roi_pct": "",
+                                    "precio_entrada_c": no_ask, "precio_actual_c": "", "roi_pct": "",
                                     "activo_en_entrada": underlying_price, "activo_ahora": "",
                                     "segundos_restantes_cierre": remaining_s,
                                 })
