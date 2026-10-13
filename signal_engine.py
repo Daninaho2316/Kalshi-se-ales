@@ -539,6 +539,16 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
         print(f"[WARN] No se pudo enviar Telegram: {e}")
 
 
+def costo_comision_cents(price_cents):
+    # Formula publicada por Kalshi para la comision de ejecucion: 0.07 *
+    # precio * (1 - precio) en dolares, con el precio en dolares (0 a 1).
+    # Convertida a centavos (que es como se maneja todo en este archivo):
+    # 0.0007 * precio_centavos * (100 - precio_centavos). Se paga una vez
+    # al COMPRAR y otra vez al VENDER (son dos operaciones distintas), y es
+    # mas alta cuanto mas cerca del centro (50c) este el precio.
+    return 0.0007 * price_cents * (100 - price_cents)
+
+
 def calcular_objetivo(entry_price):
     # UNICA fuente de verdad para el precio de SALIDA (objetivo) de una
     # entrada -- la usan tanto el mensaje de Telegram (send_entry_signal)
@@ -550,7 +560,33 @@ def calcular_objetivo(entry_price):
     # real en otros casos del mismo rango). Ahora hay un solo numero: se
     # calcula una vez al abrir la posicion, se muestra en el mensaje, y es
     # EXACTAMENTE el mismo que dispara el aviso de "cobrar".
-    return min(OBJETIVO_MAX_CENTS, max(entry_price + 1, math.ceil(entry_price * (1 + ROI_TARGET))))
+    #
+    # 2026-10-13 (noveno ajuste): el usuario detecto que el 10% "de papel"
+    # (solo diferencia de precios) no es el 10% real que termina en el
+    # bolsillo -- Kalshi cobra comision al comprar Y al vender, y esa
+    # comision se come una parte grande de la ganancia ("10% es imposible
+    # por que mas lo que quita Kalshi pierde uno mucho"). Ahora el objetivo
+    # se calcula para que la ganancia NETA (ya restando ambas comisiones)
+    # sea la que alcance ROI_TARGET, no la diferencia bruta de precios.
+    comision_entrada = costo_comision_cents(entry_price)
+    objetivo = entry_price + 1
+    while objetivo < 99:
+        comision_salida = costo_comision_cents(objetivo)
+        ganancia_pct_probando = (objetivo - entry_price - comision_entrada - comision_salida) / entry_price
+        if ganancia_pct_probando >= ROI_TARGET:
+            break
+        objetivo += 1
+    return min(OBJETIVO_MAX_CENTS, objetivo)
+
+
+def ganancia_neta_pct(entry_price, objetivo):
+    # Ganancia real, en porcentaje sobre lo invertido, DESPUES de restar la
+    # comision de Kalshi en la entrada y en la salida. Esto es lo que
+    # importa de verdad (lo que queda en el bolsillo), no la diferencia
+    # bruta de precios.
+    comision_entrada = costo_comision_cents(entry_price)
+    comision_salida = costo_comision_cents(objetivo)
+    return (objetivo - entry_price - comision_entrada - comision_salida) / entry_price
 
 
 def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, ask_actual, underlying_price, sesgo=None, sesgo_detalle=None):
@@ -571,6 +607,7 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
     # poll_once() ya se asegura de que quede al menos MIN_ROOM_PCT de
     # ganancia real antes de abrir la posicion.
     objetivo = calcular_objetivo(entry_price)
+    ganancia_real_pct = ganancia_neta_pct(entry_price, objetivo) * 100
     linea_tecnica = ""
     if sesgo_detalle:
         r = sesgo_detalle.get("rsi")
@@ -595,6 +632,7 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
         f"Precio actual (ask): {ask_actual}¢\n"
         f"👉 Pon ORDEN LÍMITE a: <b>{entry_price}¢</b> (tope maximo -- normalmente se llena mas cerca del ask, nunca pagas mas de esto)\n"
         f"Precio de SALIDA (objetivo): <b>{objetivo}¢</b>\n"
+        f"Ganancia real estimada (ya con comision de Kalshi): <b>{ganancia_real_pct:.1f}%</b>\n"
         f"{linea_tecnica}"
         f"Enviado: {hora_atlanta()} (hora Atlanta)"
     )
@@ -786,7 +824,7 @@ def poll_once(client, state, bot_token, chat_id):
                             else:
                                 limite_yes = min(99, yes_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
                                 objetivo_yes_posible = calcular_objetivo(limite_yes)
-                                ganancia_yes_pct = (objetivo_yes_posible - limite_yes) / limite_yes
+                                ganancia_yes_pct = ganancia_neta_pct(limite_yes, objetivo_yes_posible)
                                 if ganancia_yes_pct < MIN_ROOM_PCT:
                                     # El limite (lo que de verdad se podria pagar) ya
                                     # no deja suficiente ganancia real hasta el
@@ -822,7 +860,7 @@ def poll_once(client, state, bot_token, chat_id):
                             else:
                                 limite_no = min(99, no_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
                                 objetivo_no_posible = calcular_objetivo(limite_no)
-                                ganancia_no_pct = (objetivo_no_posible - limite_no) / limite_no
+                                ganancia_no_pct = ganancia_neta_pct(limite_no, objetivo_no_posible)
                                 if ganancia_no_pct < MIN_ROOM_PCT:
                                     print(f"[INFO] {series}: entrada BAJA descartada, limite {limite_no}c solo deja {ganancia_no_pct*100:.1f}% real (< {MIN_ROOM_PCT*100:.0f}%)")
                                 else:
