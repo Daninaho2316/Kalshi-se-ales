@@ -74,10 +74,15 @@ INDICATOR_CACHE_SECONDS = 30  # no hace falta pedir velas nuevas cada 8s: una
 
 ROI_TARGET = 0.10          # 10% de ganancia sobre el precio de entrada
 
-OBJETIVO_MAX_CENTS = 93    # tope duro para el precio de SALIDA (objetivo), sin importar que tan
+OBJETIVO_MAX_CENTS = 90    # tope duro para el precio de SALIDA (objetivo), sin importar que tan
                            # alto sea el precio de entrada. Por datos reales, un objetivo de 94c+
                            # se pega cerca del techo y tarda mucho mas en llegar (o no llega y se
-                           # fuerza el cierre sin ganancia).
+                           # fuerza el cierre sin ganancia). BAJADO de 93 a 90 (2026-10-13, cuarto
+                           # ajuste): con 93 el usuario reporto entradas que SI pasaban el chequeo
+                           # de MIN_ROOM_CENTS pero quedaban en el borde (ej. limite 88 -> objetivo
+                           # 93, solo 5.7% real) -- muy poco margen para que valga la pena. El
+                           # usuario pidio directamente: entrada ideal entre 70-80c, salida hasta
+                           # 90c.
 
 MIN_ROOM_CENTS = 5         # el objetivo (capado a OBJETIVO_MAX_CENTS) tiene que dejar AL MENOS
                            # esto de espacio real por encima del precio de entrada (el limite con
@@ -108,17 +113,18 @@ LIMIT_SLIPPAGE_BUFFER_CENTS = 10  # un limite 2c POR DEBAJO del ask (como se
                            # de lo que pudiste haber pagado). Con 10 de colchon y el
                            # chequeo de espacio minimo (ver mas abajo) eso ya no
                            # puede pasar.
-MAX_ENTRY_PRICE = 84       # BAJADO de 90 a 84 (2026-10-12, segundo ajuste): el usuario reporto
+MAX_ENTRY_PRICE = 80       # BAJADO de 90 a 84 y luego a 80 (2026-10-12/13): el usuario reporto
                            # (con datos reales revisados) que cuando el objetivo de salida queda
                            # entre 94-99c, el precio se "pega" cerca del techo y tarda muchisimo en
                            # llegar -- a esos niveles el contrato ya esta casi en 100% de certeza y
                            # se mueve en fracciones de centavo por vez, por mas tiempo que le quede
                            # al ciclo. Confirmado en los 662 pares del historial: con objetivo < 94c
                            # el cierre forzado (sin llegar a la meta) es casi 0%; con objetivo entre
-                           # 94-99c sube a 11-14%. Por eso ahora el objetivo se calcula sobre el ASK
-                           # real (no sobre el limite con colchon, ver OBJETIVO_MAX_CENTS mas abajo),
-                           # y el ask maximo de entrada baja a 84c para que ni en el techo de la banda
-                           # el objetivo (84*1.10=93c) entre en esa zona pegajosa.
+                           # 94-99c sube a 11-14%. Ajustado de nuevo (80) junto con OBJETIVO_MAX_CENTS
+                           # a pedido directo del usuario: entrada ideal entre 70-80c, salida hasta
+                           # 90c -- con el colchon (10c) y el objetivo capado a 90c, esto deja un
+                           # rango real de ask ~70-75c con 7-10% de ganancia real, en vez de casos
+                           # al borde con apenas 5-6%.
 
 # No entrar si el precio ya esta tan BAJO que el mercado practicamente ya
 # descarto ese lado (ej. 3c = el mercado le da ~3% de probabilidad). A esos
