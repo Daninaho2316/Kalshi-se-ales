@@ -151,7 +151,16 @@ MIN_TIME_TO_CLOSE_SECONDS = 180  # 3 minutos
 # cayo demasiado (se corta la perdida aqui en vez de dejarla llegar a -100%),
 # o se esta acabando el tiempo (se cierra YA al precio que sea, nunca se deja
 # vencer sin vender).
-STOP_LOSS_PCT = 0.30       # cortar la perdida si el contrato cae 30% desde la entrada
+STOP_LOSS_PCT = 0.20       # BAJADO de 30% a 20% (2026-10-12): en los 86 cortes de perdida
+                           # reales del historial, el ROI promedio cuando el bot alcanza a avisar
+                           # fue -39.4% (mediana -36.6%), no -30% -- la caida de precio cuando el
+                           # mercado se devuelve es mas rapida que la subida (el usuario lo
+                           # confirmo con su propia experiencia), asi que para cuando el chequeo
+                           # de cada 8s lo detecta, ya se paso varios centavos del umbral. Bajando
+                           # el umbral a 20% el corte deberia activarse mas temprano y el golpe
+                           # real terminar rondando 25-30% en vez de 35-40%+. Sigue habiendo algo
+                           # de sobrepaso por el intervalo de 8s entre lecturas -- eso no
+                           # desaparece, solo se reduce.
 FORCE_EXIT_SECONDS = 45    # si quedan <45s para el cierre y sigue abierta, cerrarla YA
 MIN_HOLD_SECONDS = 30      # no avisar la toma de ganancia antes de este tiempo desde la
                            # entrada: en datos reales muchas entradas llegaban al 10% en
