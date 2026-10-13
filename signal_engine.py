@@ -72,12 +72,24 @@ INDICATOR_CACHE_SECONDS = 30  # no hace falta pedir velas nuevas cada 8s: una
                                # vela de 1 min no cambia tanto en ese rato, y
                                # asi se cuida la API publica de Kraken
 
-ROI_TARGET = 0.20          # SUBIDO de 10% a 20% (2026-10-13, quinto ajuste): el usuario hizo
-                           # notar que arriesgar 20-30% en el corte de perdida para ganar solo
-                           # 7-10% en el objetivo es incoherente -- "hay que ser un poco mas
-                           # agresivo en las ganancias como lo son ellos para las perdidas". Subir
-                           # la meta de ganancia (sin tocar el tope de seguridad del objetivo, ver
-                           # OBJETIVO_MAX_CENTS) deja un riesgo:ganancia mucho mas razonable.
+ROI_TARGET = 0.10          # BAJADO de vuelta de 20% a 10% (2026-10-13, sexto ajuste, pocas horas
+                           # despues del quinto): el experimento de subir a 20% fallo fuerte en la
+                           # practica real -- 24 operaciones, win rate se desplomo de ~85-87% a
+                           # 25%, ROI neto promedio -5.1%. La razon: con el objetivo en 93c (el
+                           # tope) para casi todas las entradas de la banda 70-80 de ask, la meta
+                           # quedaba muy lejos del precio de entrada, y mientras mas lejos esta la
+                           # meta mas tiempo tarda en llegar -- mas tiempo le da al precio para
+                           # devolverse y pegar el corte de perdida antes de alcanzarla (5 cortes
+                           # seguidos el 2026-10-13 entre 11:31 y 12:46, varios en 20-30s). El
+                           # riesgo de subir la ganancia no se compensa si tumba el win rate mas
+                           # rapido de lo que sube el premio -- la matematica: con corte real
+                           # ~-28%, hace falta win rate > 58% para que valga la pena con meta de
+                           # 20% (28/(28+20)), pero el real fue 25%. Con meta de 10% el breakeven
+                           # es ~74% (28/(28+10)) y el win rate historico real (~85-87%) lo supera
+                           # comodo. CONCLUSION: para esta banda de precios (70-80 ask) y esta
+                           # velocidad de reversion, 10% es la meta que de verdad funciona -- si se
+                           # quiere mas agresivo despues, probar con pasos chicos (ej. 12%) y mirar
+                           # los resultados reales antes de subir mas, no saltar directo a 20%.
 
 OBJETIVO_MAX_CENTS = 93    # tope duro para el precio de SALIDA (objetivo), sin importar que tan
                            # alto sea el precio de entrada. Por datos reales (662 pares del
