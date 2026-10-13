@@ -101,16 +101,14 @@ OBJETIVO_MAX_CENTS = 93    # tope duro para el precio de SALIDA (objetivo), sin 
                            # de descartar los casos al borde con poco margen, en vez de bajar el
                            # techo para todos.
 
-MIN_ROOM_PCT = 0.08        # el objetivo (capado a OBJETIVO_MAX_CENTS) tiene que dejar AL MENOS
-                           # este % de ganancia real por encima del precio de entrada (el limite
-                           # con colchon, que es lo que de verdad se puede llegar a pagar) --
-                           # antes era un tope fijo en centavos (MIN_ROOM_CENTS=5), pero eso dejaba
-                           # pasar casos como limite 88 -> objetivo 93 (solo 5.7% real, muy poco
-                           # margen para que valga la pena). Con un % minimo en vez de centavos
-                           # fijos, el filtro es consistente sin importar el nivel de precio. Bug
-                           # real que esto tambien evita (visto 2026-10-13): si el objetivo quedaba
-                           # igual o por debajo del limite, vender ahi podia ser perder dinero, no
-                           # ganar -- ahora esa entrada simplemente se descarta.
+MIN_ROOM_PCT = ROI_TARGET  # SUBIDO de 0.08 a ROI_TARGET (2026-10-13, septimo ajuste): antes
+                           # el minimo (8%) era mas bajo que la meta anunciada (10%), asi que
+                           # algunas entradas pasaban el filtro pero el "objetivo" mostrado ya
+                           # venia recortado por OBJETIVO_MAX_CENTS a MENOS del 10% prometido (el
+                           # usuario lo noto: "precios de entrada en 81 con salida en 90 no dan
+                           # muchas veces ni el 10"). Exigiendo el mismo % que ROI_TARGET, ninguna
+                           # entrada que se manda promete menos de la meta completa -- las que no
+                           # alcanzan se descartan en vez de mostrar un objetivo recortado.
 
 LIMIT_SLIPPAGE_BUFFER_CENTS = 10  # un limite 2c POR DEBAJO del ask (como se
                            # probo primero) casi nunca se llena en un movimiento
@@ -541,6 +539,20 @@ def send_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, ro
         print(f"[WARN] No se pudo enviar Telegram: {e}")
 
 
+def calcular_objetivo(entry_price):
+    # UNICA fuente de verdad para el precio de SALIDA (objetivo) de una
+    # entrada -- la usan tanto el mensaje de Telegram (send_entry_signal)
+    # como el chequeo real de "ya se puede cobrar" en poll_once(). Antes
+    # estaban separados: el mensaje mostraba este numero capado a
+    # OBJETIVO_MAX_CENTS, pero el chequeo de salida comparaba contra
+    # entry_price*(1+ROI_TARGET) SIN el tope -- dos numeros distintos. El
+    # usuario lo noto (entrada 81 -> "salida 90" que no llegaba ni al 10%
+    # real en otros casos del mismo rango). Ahora hay un solo numero: se
+    # calcula una vez al abrir la posicion, se muestra en el mensaje, y es
+    # EXACTAMENTE el mismo que dispara el aviso de "cobrar".
+    return min(OBJETIVO_MAX_CENTS, max(entry_price + 1, math.ceil(entry_price * (1 + ROI_TARGET))))
+
+
 def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, ask_actual, underlying_price, sesgo=None, sesgo_detalle=None):
     activo = series.replace("KX", "").replace("15M", "")
     if lado == "yes":
@@ -558,7 +570,7 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
     # para no entrar en la zona pegajosa cerca del techo del contrato, y
     # poll_once() ya se asegura de que quede al menos MIN_ROOM_PCT de
     # ganancia real antes de abrir la posicion.
-    objetivo = min(OBJETIVO_MAX_CENTS, max(entry_price + 1, math.ceil(entry_price * 1.10)))
+    objetivo = calcular_objetivo(entry_price)
     linea_tecnica = ""
     if sesgo_detalle:
         r = sesgo_detalle.get("rsi")
@@ -773,7 +785,7 @@ def poll_once(client, state, bot_token, chat_id):
                                 print(f"[INFO] {series}: entrada SUBE descartada, el ask salto {yes_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
                                 limite_yes = min(99, yes_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
-                                objetivo_yes_posible = min(OBJETIVO_MAX_CENTS, max(limite_yes + 1, math.ceil(limite_yes * (1 + ROI_TARGET))))
+                                objetivo_yes_posible = calcular_objetivo(limite_yes)
                                 ganancia_yes_pct = (objetivo_yes_posible - limite_yes) / limite_yes
                                 if ganancia_yes_pct < MIN_ROOM_PCT:
                                     # El limite (lo que de verdad se podria pagar) ya
@@ -786,6 +798,7 @@ def poll_once(client, state, bot_token, chat_id):
                                     state["positions"][ticker] = {
                                         "side": "yes",
                                         "entry_price": limite_yes,
+                                        "objetivo": objetivo_yes_posible,
                                         "entry_time": now_iso(),
                                         "underlying_entry": underlying_price,
                                         "series": series,
@@ -808,7 +821,7 @@ def poll_once(client, state, bot_token, chat_id):
                                 print(f"[INFO] {series}: entrada BAJA descartada, el ask salto {no_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
                                 limite_no = min(99, no_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
-                                objetivo_no_posible = min(OBJETIVO_MAX_CENTS, max(limite_no + 1, math.ceil(limite_no * (1 + ROI_TARGET))))
+                                objetivo_no_posible = calcular_objetivo(limite_no)
                                 ganancia_no_pct = (objetivo_no_posible - limite_no) / limite_no
                                 if ganancia_no_pct < MIN_ROOM_PCT:
                                     print(f"[INFO] {series}: entrada BAJA descartada, limite {limite_no}c solo deja {ganancia_no_pct*100:.1f}% real (< {MIN_ROOM_PCT*100:.0f}%)")
@@ -816,6 +829,7 @@ def poll_once(client, state, bot_token, chat_id):
                                     state["positions"][ticker] = {
                                         "side": "no",
                                         "entry_price": limite_no,
+                                        "objetivo": objetivo_no_posible,
                                         "entry_time": now_iso(),
                                         "underlying_entry": underlying_price,
                                         "series": series,
@@ -836,11 +850,24 @@ def poll_once(client, state, bot_token, chat_id):
         elif not position.get("signaled"):
             side = position["side"]
             entry_price = position["entry_price"]
+            # objetivo guardado al abrir la posicion -- el MISMO numero que se
+            # le mostro al usuario en el mensaje de ENTRADA (ver
+            # calcular_objetivo()). Si la posicion es de antes de este arreglo
+            # (sin "objetivo" guardado en el estado), se recalcula aqui como
+            # respaldo para no romper posiciones ya abiertas.
+            objetivo = position.get("objetivo") or calcular_objetivo(entry_price)
             current_sell = yes_bid if side == "yes" else no_bid
             if entry_price is not None and current_sell is not None and entry_price > 0:
                 roi = (current_sell - entry_price) / entry_price
 
-                if roi >= ROI_TARGET and seconds_since(position.get("entry_time")) >= MIN_HOLD_SECONDS:
+                if current_sell >= objetivo and seconds_since(position.get("entry_time")) >= MIN_HOLD_SECONDS:
+                    # Antes esto comparaba roi >= ROI_TARGET directamente, SIN el
+                    # tope de OBJETIVO_MAX_CENTS -- asi el bot podia esperar un
+                    # precio mas alto del que le habia mostrado al usuario como
+                    # "objetivo" (ej. objetivo mostrado 93c, pero el chequeo real
+                    # esperaba hasta 99c si el ROI_TARGET crudo lo pedia). El
+                    # usuario lo detecto ("no dan ni el 10"). Ahora el disparo
+                    # usa el MISMO numero que se mostro, sin excepcion.
                     # objetivo de ganancia alcanzado Y ya paso el tiempo minimo desde
                     # la entrada (si no, se espera al siguiente poll sin marcar nada,
                     # para darle chance real al usuario de haber entrado en Kalshi)
