@@ -46,10 +46,10 @@ CSV_FIELDS = [
 SERIES_INDEX = {
     "KXBTC15M": "BRTI",
     "KXETH15M": "ETHUSD_RTI",
-    # KXSOL15M y KXXRP15M desactivados a pedido del usuario: con las 4 series
-    # activas llegaban demasiadas senales juntas y era dificil entrar a
-    # todas a tiempo; se dejan solo BTC y ETH (mejor resultado promedio por
-    # operacion en el rastreador).
+    "KXXRP15M": "XRPUSD_RTI",  # REACTIVADO 2026-10-14 a pedido del usuario (antes se habia
+                                # desactivado junto con SOL por demasiadas señales juntas).
+                                # KXSOL15M sigue desactivado -- el usuario solo pidio XRP de
+                                # vuelta.
 }
 
 # Umbral minimo de movimiento del activo (fraccion, no %) para marcar una
@@ -57,15 +57,21 @@ SERIES_INDEX = {
 MOMENTUM_THRESHOLD = {
     "KXBTC15M": 0.0004,  # 0.04%
     "KXETH15M": 0.0006,  # 0.06%
+    "KXXRP15M": 0.0012,  # 0.12% (mismo valor que se uso la primera vez que XRP estuvo activo;
+                          # XRP se mueve mas brusco que BTC/ETH, por eso el umbral mas alto --
+                          # a revisar con datos reales una vez que entren señales de XRP).
 }
 
 # Par de Kraken (exchange real, API publica, sin API key) para traer velas
 # OHLC de 1 minuto y calcular indicadores tecnicos (EMA/RSI/ADX) -- CF
 # Benchmarks solo da el valor puntual del indice, sin historial ni volumen,
 # asi que para EMA/RSI/ADX hace falta una serie de velas de un exchange real.
+# (Los indicadores estan desactivados como filtro de entrada por ahora -- ver
+# sesgo_tecnico() -- pero se deja el par listo por si se reactivan.)
 KRAKEN_PAIR = {
     "KXBTC15M": "XBTUSD",
     "KXETH15M": "ETHUSD",
+    "KXXRP15M": "XRPUSD",
 }
 
 INDICATOR_CACHE_SECONDS = 30  # no hace falta pedir velas nuevas cada 8s: una
