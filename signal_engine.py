@@ -129,47 +129,58 @@ LIMIT_SLIPPAGE_BUFFER_CENTS = 10  # un limite 2c POR DEBAJO del ask (como se
                            # de lo que pudiste haber pagado). Con 10 de colchon y el
                            # chequeo de espacio minimo (ver mas abajo) eso ya no
                            # puede pasar.
-MAX_ENTRY_PRICE = 70       # BAJADO de 90 a 84, a 80, y ahora a 70 (2026-10-12/13): el usuario
-                           # reporto (con datos reales revisados) que cuando el objetivo de salida
-                           # queda entre 94-99c, el precio se "pega" cerca del techo y tarda
-                           # muchisimo en llegar -- a esos niveles el contrato ya esta casi en 100%
-                           # de certeza y se mueve en fracciones de centavo por vez, por mas tiempo
-                           # que le quede al ciclo. Confirmado en los 662 pares del historial: con
-                           # objetivo < 94c el cierre forzado (sin llegar a la meta) es casi 0%; con
-                           # objetivo entre 94-99c sube a 11-14%.
-                           # 2026-10-13 (decimo ajuste): con la comision de Kalshi ya restada del
-                           # calculo del objetivo (ver calcular_objetivo), la banda 70-80 dejaba de
-                           # cumplir el 10% NETO para ask 75c en adelante -- casi no llegaban
-                           # señales. El usuario pidio bajar la banda ideal a 60-65 para dejar mas
-                           # espacio real antes del tope de 93c; se quedo en 65-70 (punto medio) para
-                           # no entrar en la zona de 20-60c donde los movimientos se resuelven en
-                           # 32-41 segundos (ver MIN_ENTRY_PRICE) -- demasiado rapido para poner la
-                           # orden a mano, y ese mismo apuro es lo que agranda las perdidas.
+MAX_ENTRY_PRICE = 45       # CAMBIADO de 70 a 45 (2026-10-14, estrategia nueva pedida por
+                           # el usuario via documento "indicaciones_bot_kalshi 2.md"). Bloqueo
+                           # estricto: Ask >= 46 nunca genera señal (ya lo cubre este tope, no
+                           # hace falta un chequeo aparte).
+                           # ADVERTENCIA (dejada aqui a proposito): esto vuelve a la zona de ask
+                           # 20-60c que HISTORICAMENTE (653 pares reales de este mismo bot) se
+                           # resuelve en 32-41 segundos en promedio -- el motivo original por el
+                           # que MIN_ENTRY_PRICE se habia subido de 20 a 70, y por el que el
+                           # 2026-10-13 solo se bajo hasta 65, no mas abajo. El usuario vio esta
+                           # advertencia explicitamente y pidio igual usar el rango del documento
+                           # tal cual, asi que se implementa como esta pedido -- pero si las
+                           # entradas vuelven a sentirse "demasiado rapidas para alcanzar a mano",
+                           # esta es la causa mas probable.
 
 # No entrar si el precio ya esta tan BAJO que el mercado practicamente ya
 # descarto ese lado (ej. 3c = el mercado le da ~3% de probabilidad). A esos
 # precios cualquier moneda de 1 centavo de diferencia es un porcentaje
-# enorme (de 3c a 2c es "solo" 1 centavo pero -33%), asi que el 10% de
-# ganancia y el -30% de corte de perdida se disparan por pura ruidosidad del
-# precio, no por un movimiento real — y es jugar contra un consenso de
-# mercado muy fuerte. Visto en datos reales: entrada en ETH a 3c, corte de
-# perdida casi inmediato a 2c.
-MIN_ENTRY_PRICE = 65   # SUBIDO de 20 a 70 (2026-10-12), luego BAJADO de 70 a 65 (2026-10-13,
-                       # decimo ajuste). Analizando los 653 pares entrada->salida del historial
-                       # real, el tiempo que una entrada tarda en llegar a su objetivo o a su
-                       # corte de perdida depende muchisimo del precio de entrada:
-                       #   entrada 20-60c -> tiempo mediano hasta salir: 32-41 SEGUNDOS
-                       #   entrada 70c    -> tiempo mediano: 66s
-                       #   entrada 80c    -> tiempo mediano: 171s (casi 3 min)
-                       #   entrada 90c    -> tiempo mediano: 319s (mas de 5 min)
-                       # Con entradas de 20-60c, para cuando el usuario ve la alerta de Telegram,
-                       # desbloquea el telefono y abre Kalshi, en muchos casos el movimiento YA
-                       # TERMINO -- no es un problema de precio, es que la ventana para actuar es
-                       # demasiado corta para una compra manual. El usuario pidio bajar la banda
-                       # ideal a 60-65c (para tener mas espacio real antes del tope de 93c, ahora
-                       # que la comision de Kalshi se resta del calculo); se quedo en 65-70 como
-                       # punto medio -- mas barato que 70-80, pero sin meterse en la zona de
-                       # 32-41 segundos de 20-60c.
+# enorme, asi que el TP/SL se disparan por pura ruidosidad del precio, no
+# por un movimiento real — y es jugar contra un consenso de mercado muy
+# fuerte. Visto en datos reales: entrada en ETH a 3c, corte de perdida casi
+# inmediato a 2c.
+MIN_ENTRY_PRICE = 30   # CAMBIADO de 65 a 30 (2026-10-14, misma estrategia nueva). Banda pedida
+                       # por el usuario: Ask entre $0.30 y $0.45. Ver la advertencia completa en
+                       # MAX_ENTRY_PRICE.
+
+TP_MARGEN_CENTS = 25   # Ganancia fija en CENTAVOS sobre el precio limite de entrada (no un
+                       # porcentaje). Pedido explicito del usuario via documento: con entrada
+                       # limite de 40c, el objetivo es 65c (40+25); con 55c, el objetivo es 80c
+                       # (55+25). Reemplaza el sistema anterior (ROI_TARGET/calcular_objetivo,
+                       # que segu'ia siendo un % con la comision de Kalshi restada) para esta
+                       # banda de precios nueva. ROI_TARGET/calcular_objetivo se dejan en el
+                       # archivo solo como respaldo por si queda alguna posicion vieja abierta
+                       # con el esquema anterior.
+
+SL_MARGEN_CENTS = 20   # Perdida fija en CENTAVOS tolerada bajo el precio limite de entrada
+                       # (reemplaza STOP_LOSS_PCT, que era un %, para esta banda nueva). Con
+                       # entrada limite de 40c, el corte es a 20c (40-20); con 55c, el corte es
+                       # a 35c (55-20). Relacion riesgo:beneficio ~1:1.25 (arriesga 20, gana 25),
+                       # pedida por el documento del usuario.
+
+VENTANA_ENTRADA_MAX_MINUTOS = 7  # Solo se abren entradas nuevas durante los primeros 7 minutos
+                       # de la vela de 15 min (minuto 0:00 a 6:59). Pedido del usuario via
+                       # documento: la segunda mitad de la vela (minuto 7:00 en adelante) se
+                       # bloquea por completo para entradas nuevas, sin importar que tan buena
+                       # se vea la condicion de precio -- la volatilidad y el manejo del spread
+                       # de los creadores de mercado en los minutos finales de la vela baja la
+                       # tasa de acierto. Esto NO afecta las salidas (cobrar/corte/cierre
+                       # forzado siguen funcionando siempre en una posicion ya abierta).
+
+REGLA_ORO_MARGEN_CENTS = 2  # Si el precio ya paso de entrada+2c ANTES de que el usuario alcance
+                       # a poner la orden limite, el mensaje le avisa que cancele en vez de
+                       # perseguir el precio (pedido del documento, "Regla de Oro").
 
 # No abrir una entrada nueva si al ciclo de 15 min le quedan menos de esto.
 # Motivo (visto en los datos reales): varias perdidas fueron entradas tardias
@@ -186,16 +197,11 @@ MIN_TIME_TO_CLOSE_SECONDS = 180  # 3 minutos
 # cayo demasiado (se corta la perdida aqui en vez de dejarla llegar a -100%),
 # o se esta acabando el tiempo (se cierra YA al precio que sea, nunca se deja
 # vencer sin vender).
-STOP_LOSS_PCT = 0.20       # BAJADO de 30% a 20% (2026-10-12): en los 86 cortes de perdida
-                           # reales del historial, el ROI promedio cuando el bot alcanza a avisar
-                           # fue -39.4% (mediana -36.6%), no -30% -- la caida de precio cuando el
-                           # mercado se devuelve es mas rapida que la subida (el usuario lo
-                           # confirmo con su propia experiencia), asi que para cuando el chequeo
-                           # de cada 8s lo detecta, ya se paso varios centavos del umbral. Bajando
-                           # el umbral a 20% el corte deberia activarse mas temprano y el golpe
-                           # real terminar rondando 25-30% en vez de 35-40%+. Sigue habiendo algo
-                           # de sobrepaso por el intervalo de 8s entre lecturas -- eso no
-                           # desaparece, solo se reduce.
+STOP_LOSS_PCT = 0.20       # BAJADO de 30% a 20% (2026-10-12). DEJO DE USARSE para
+                           # entradas nuevas desde el 2026-10-14 (ver SL_MARGEN_CENTS, corte fijo
+                           # en centavos pedido por el usuario) -- se deja aqui solo como
+                           # respaldo por si queda alguna posicion vieja abierta con el esquema
+                           # anterior.
 FORCE_EXIT_SECONDS = 45    # si quedan <45s para el cierre y sigue abierta, cerrarla YA
 MIN_HOLD_SECONDS = 30      # no avisar la toma de ganancia antes de este tiempo desde la
                            # entrada: en datos reales muchas entradas llegaban al 10% en
@@ -591,7 +597,7 @@ def ganancia_neta_pct(entry_price, objetivo):
     return (objetivo - entry_price - comision_entrada - comision_salida) / entry_price
 
 
-def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, ask_actual, underlying_price, sesgo=None, sesgo_detalle=None):
+def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, ask_actual, underlying_price, remaining_s=None, sesgo=None, sesgo_detalle=None):
     activo = series.replace("KX", "").replace("15M", "")
     if lado == "yes":
         direccion = "SUBE"
@@ -600,16 +606,19 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
         direccion = "BAJA"
         cabecera = "🔴⬇️🔴⬇️🔴⬇️"
     # entry_price aqui es el precio LIMITE (ask + colchon de seguridad) -- lo
-    # mismo que se guarda en la posicion para medir el objetivo/corte de
-    # perdida, asi el objetivo SIEMPRE queda por encima de lo que el usuario
-    # podria llegar a pagar de verdad (nunca por debajo, como paso en el bug
-    # del 2026-10-13: ask 79 -> limite 94 -> "objetivo" 87, vender mas barato
-    # de lo que pudo haber costado). El objetivo se capa a OBJETIVO_MAX_CENTS
-    # para no entrar en la zona pegajosa cerca del techo del contrato, y
-    # poll_once() ya se asegura de que quede al menos MIN_ROOM_PCT de
-    # ganancia real antes de abrir la posicion.
-    objetivo = calcular_objetivo(entry_price)
+    # mismo que se guarda en la posicion. TP/SL fijos en centavos pedidos por
+    # el usuario el 2026-10-14 (documento "indicaciones_bot_kalshi 2.md"):
+    # reemplazan el calculo por % que se usaba antes para esta banda de
+    # precios. ganancia_neta_pct() se deja solo como linea informativa (ya
+    # con la comision de Kalshi restada), no decide nada.
+    objetivo = min(99, entry_price + TP_MARGEN_CENTS)
+    corte = max(1, entry_price - SL_MARGEN_CENTS)
     ganancia_real_pct = ganancia_neta_pct(entry_price, objetivo) * 100
+    regla_oro_limite = entry_price + REGLA_ORO_MARGEN_CENTS
+    vela_texto = ""
+    if remaining_s is not None:
+        transcurrido_s = max(0, 900 - remaining_s)
+        vela_texto = f"Vela actual: {int(transcurrido_s // 60)}:{int(transcurrido_s % 60):02d} / 15:00\n"
     linea_tecnica = ""
     if sesgo_detalle:
         r = sesgo_detalle.get("rsi")
@@ -633,8 +642,11 @@ def send_entry_signal(bot_token, chat_id, *, series, ticker, lado, entry_price, 
         f"Lado: {direccion}\n"
         f"Precio actual (ask): {ask_actual}¢\n"
         f"👉 Pon ORDEN LÍMITE a: <b>{entry_price}¢</b> (tope maximo -- normalmente se llena mas cerca del ask, nunca pagas mas de esto)\n"
-        f"Precio de SALIDA (objetivo): <b>{objetivo}¢</b>\n"
+        f"💰 TOMAR GANANCIA (TP): <b>{objetivo}¢</b> (+{TP_MARGEN_CENTS}¢)\n"
+        f"🛑 CORTAR PÉRDIDA (SL): <b>{corte}¢</b> (-{SL_MARGEN_CENTS}¢)\n"
         f"Ganancia real estimada (ya con comision de Kalshi): <b>{ganancia_real_pct:.1f}%</b>\n"
+        f"⚠️ Regla de oro: si el precio ya pasó de {regla_oro_limite}¢ antes de poner tu orden, CANCELA -- no persigas el precio.\n"
+        f"{vela_texto}"
         f"{linea_tecnica}"
         f"Enviado: {hora_atlanta()} (hora Atlanta)"
     )
@@ -790,9 +802,18 @@ def poll_once(client, state, bot_token, chat_id):
 
         if position is None:
             # Si al ciclo le queda muy poco tiempo, no abrir una entrada nueva:
-            # no alcanzaria a llegar al 10% y se saldria sin señal de salida
+            # no alcanzaria a llegar a la ganancia y se saldria sin señal de salida
             # (exactamente la "apuesta" que se quiere evitar).
             too_late = remaining_s is not None and remaining_s < MIN_TIME_TO_CLOSE_SECONDS
+            # Ventana de tiempo pedida por el usuario (documento 2026-10-14): solo
+            # entrar en los primeros VENTANA_ENTRADA_MAX_MINUTOS de la vela de 15
+            # min. La vela dura 900s, asi que minutos transcurridos = (900 -
+            # remaining_s) / 60. Si remaining_s no se pudo leer, no se bloquea por
+            # esto (igual que too_late).
+            fuera_ventana_tiempo = (
+                remaining_s is not None
+                and (900 - remaining_s) / 60 >= VENTANA_ENTRADA_MAX_MINUTOS
+            )
             # Antes se evaluaba la entrada con solo 2 lecturas del activo (tan poco
             # como 8 segundos de historial, un solo "tick"). Eso disparaba la entrada
             # sobre un movimiento instantaneo que Kalshi alcanza a corregir casi al
@@ -802,7 +823,7 @@ def poll_once(client, state, bot_token, chat_id):
             # sostenido, no un parpadeo de un segundo -- una entrada real que lleva
             # medio minuto formandose tiene mas chance real de seguir viva cuando el
             # usuario entra a mano, en vez de ya haber desaparecido.
-            if len(hist) >= ENTRY_CONFIRM_READINGS and not too_late and not en_pausa_de_entradas():
+            if len(hist) >= ENTRY_CONFIRM_READINGS and not too_late and not fuera_ventana_tiempo and not en_pausa_de_entradas():
                 base = hist[-ENTRY_CONFIRM_READINGS]
                 if base:
                     pct_move = (hist[-1] - base) / base
@@ -825,68 +846,64 @@ def poll_once(client, state, bot_token, chat_id):
                                 print(f"[INFO] {series}: entrada SUBE descartada, el ask salto {yes_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
                                 limite_yes = min(99, yes_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
-                                objetivo_yes_posible = calcular_objetivo(limite_yes)
-                                ganancia_yes_pct = ganancia_neta_pct(limite_yes, objetivo_yes_posible)
-                                if ganancia_yes_pct < MIN_ROOM_PCT:
-                                    # El limite (lo que de verdad se podria pagar) ya
-                                    # no deja suficiente ganancia real hasta el
-                                    # objetivo maximo -- descartar en vez de mandar
-                                    # un aviso con muy poco margen (o que podria
-                                    # quedar igual o por debajo de lo pagado).
-                                    print(f"[INFO] {series}: entrada SUBE descartada, limite {limite_yes}c solo deja {ganancia_yes_pct*100:.1f}% real (< {MIN_ROOM_PCT*100:.0f}%)")
-                                else:
-                                    state["positions"][ticker] = {
-                                        "side": "yes",
-                                        "entry_price": limite_yes,
-                                        "objetivo": objetivo_yes_posible,
-                                        "entry_time": now_iso(),
-                                        "underlying_entry": underlying_price,
-                                        "series": series,
-                                        "signaled": False,
-                                    }
-                                    send_entry_signal(
-                                        bot_token, chat_id, series=series, ticker=ticker,
-                                        lado="yes", entry_price=limite_yes, ask_actual=yes_ask, underlying_price=underlying_price,
-                                        sesgo=sesgo, sesgo_detalle=sesgo_detalle,
-                                    )
-                                    log_row({
-                                        "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
-                                        "evento": "entrada_detectada", "lado": "yes",
-                                        "precio_entrada_c": limite_yes, "precio_actual_c": "", "roi_pct": "",
-                                        "activo_en_entrada": underlying_price, "activo_ahora": "",
-                                        "segundos_restantes_cierre": remaining_s,
-                                    })
+                                # TP/SL fijos en centavos (documento del usuario, 2026-10-14):
+                                # reemplaza el calculo por % (calcular_objetivo/MIN_ROOM_PCT) para
+                                # esta banda de precios. ganancia_neta_pct() se sigue usando solo
+                                # para MOSTRAR la ganancia real estimada ya con comision -- no
+                                # descarta la entrada, es informativo.
+                                objetivo_yes = min(99, limite_yes + TP_MARGEN_CENTS)
+                                corte_yes = max(1, limite_yes - SL_MARGEN_CENTS)
+                                state["positions"][ticker] = {
+                                    "side": "yes",
+                                    "entry_price": limite_yes,
+                                    "objetivo": objetivo_yes,
+                                    "corte": corte_yes,
+                                    "entry_time": now_iso(),
+                                    "underlying_entry": underlying_price,
+                                    "series": series,
+                                    "signaled": False,
+                                }
+                                send_entry_signal(
+                                    bot_token, chat_id, series=series, ticker=ticker,
+                                    lado="yes", entry_price=limite_yes, ask_actual=yes_ask, underlying_price=underlying_price,
+                                    remaining_s=remaining_s, sesgo=sesgo, sesgo_detalle=sesgo_detalle,
+                                )
+                                log_row({
+                                    "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
+                                    "evento": "entrada_detectada", "lado": "yes",
+                                    "precio_entrada_c": limite_yes, "precio_actual_c": "", "roi_pct": "",
+                                    "activo_en_entrada": underlying_price, "activo_ahora": "",
+                                    "segundos_restantes_cierre": remaining_s,
+                                })
                         elif pct_move < 0 and no_ask is not None and MIN_ENTRY_PRICE <= no_ask <= MAX_ENTRY_PRICE:
                             if no_ask_jump is not None and no_ask_jump > MAX_ASK_JUMP_CENTS:
                                 print(f"[INFO] {series}: entrada BAJA descartada, el ask salto {no_ask_jump}c entre lecturas (> {MAX_ASK_JUMP_CENTS}c)")
                             else:
                                 limite_no = min(99, no_ask + LIMIT_SLIPPAGE_BUFFER_CENTS)
-                                objetivo_no_posible = calcular_objetivo(limite_no)
-                                ganancia_no_pct = ganancia_neta_pct(limite_no, objetivo_no_posible)
-                                if ganancia_no_pct < MIN_ROOM_PCT:
-                                    print(f"[INFO] {series}: entrada BAJA descartada, limite {limite_no}c solo deja {ganancia_no_pct*100:.1f}% real (< {MIN_ROOM_PCT*100:.0f}%)")
-                                else:
-                                    state["positions"][ticker] = {
-                                        "side": "no",
-                                        "entry_price": limite_no,
-                                        "objetivo": objetivo_no_posible,
-                                        "entry_time": now_iso(),
-                                        "underlying_entry": underlying_price,
-                                        "series": series,
-                                        "signaled": False,
-                                    }
-                                    send_entry_signal(
-                                        bot_token, chat_id, series=series, ticker=ticker,
-                                        lado="no", entry_price=limite_no, ask_actual=no_ask, underlying_price=underlying_price,
-                                        sesgo=sesgo, sesgo_detalle=sesgo_detalle,
-                                    )
-                                    log_row({
-                                        "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
-                                        "evento": "entrada_detectada", "lado": "no",
-                                        "precio_entrada_c": limite_no, "precio_actual_c": "", "roi_pct": "",
-                                        "activo_en_entrada": underlying_price, "activo_ahora": "",
-                                        "segundos_restantes_cierre": remaining_s,
-                                    })
+                                objetivo_no = min(99, limite_no + TP_MARGEN_CENTS)
+                                corte_no = max(1, limite_no - SL_MARGEN_CENTS)
+                                state["positions"][ticker] = {
+                                    "side": "no",
+                                    "entry_price": limite_no,
+                                    "objetivo": objetivo_no,
+                                    "corte": corte_no,
+                                    "entry_time": now_iso(),
+                                    "underlying_entry": underlying_price,
+                                    "series": series,
+                                    "signaled": False,
+                                }
+                                send_entry_signal(
+                                    bot_token, chat_id, series=series, ticker=ticker,
+                                    lado="no", entry_price=limite_no, ask_actual=no_ask, underlying_price=underlying_price,
+                                    remaining_s=remaining_s, sesgo=sesgo, sesgo_detalle=sesgo_detalle,
+                                )
+                                log_row({
+                                    "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
+                                    "evento": "entrada_detectada", "lado": "no",
+                                    "precio_entrada_c": limite_no, "precio_actual_c": "", "roi_pct": "",
+                                    "activo_en_entrada": underlying_price, "activo_ahora": "",
+                                    "segundos_restantes_cierre": remaining_s,
+                                })
         elif not position.get("signaled"):
             side = position["side"]
             entry_price = position["entry_price"]
@@ -896,6 +913,11 @@ def poll_once(client, state, bot_token, chat_id):
             # (sin "objetivo" guardado en el estado), se recalcula aqui como
             # respaldo para no romper posiciones ya abiertas.
             objetivo = position.get("objetivo") or calcular_objetivo(entry_price)
+            # corte guardado al abrir la posicion -- fijo en centavos
+            # (SL_MARGEN_CENTS), pedido por el usuario el 2026-10-14. Respaldo con
+            # STOP_LOSS_PCT solo por si queda alguna posicion vieja sin "corte"
+            # guardado (abierta antes de este cambio).
+            corte = position.get("corte") or max(1, entry_price - SL_MARGEN_CENTS)
             current_sell = yes_bid if side == "yes" else no_bid
             if entry_price is not None and current_sell is not None and entry_price > 0:
                 roi = (current_sell - entry_price) / entry_price
@@ -925,8 +947,11 @@ def poll_once(client, state, bot_token, chat_id):
                     })
                     position["signaled"] = True
 
-                elif roi <= -STOP_LOSS_PCT:
-                    # se cayo demasiado -> cortar la perdida aqui, nunca dejarla llegar a -100%
+                elif current_sell <= corte:
+                    # se cayo demasiado -> cortar la perdida aqui, nunca dejarla llegar a -100%.
+                    # Antes esto comparaba roi <= -STOP_LOSS_PCT (un %); ahora compara contra
+                    # el corte fijo en centavos guardado al abrir la posicion (ver SL_MARGEN_CENTS),
+                    # el MISMO numero que se le mostro al usuario en el mensaje de entrada.
                     send_stop_loss_signal(
                         bot_token, chat_id,
                         series=series, ticker=ticker, lado=side,
