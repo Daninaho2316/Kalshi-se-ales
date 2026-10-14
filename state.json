@@ -1,20 +1,20 @@
 {
   "underlying_history": {
     "KXBTC15M": [
-      81693.34,
-      81680.01,
-      81651.28,
-      81653.77,
-      81663.57,
-      81662.21
+      81714.9,
+      81715.15,
+      81717.73,
+      81718.44,
+      81717.92,
+      81716.45
     ],
     "KXETH15M": [
-      2415.02,
-      2414.25,
-      2413.16,
-      2413.23,
-      2413.35,
-      2413.12
+      2414.94,
+      2414.78,
+      2414.72,
+      2414.78,
+      2415.04,
+      2415.09
     ],
     "KXSOL15M": [
       118.39,
@@ -25,54 +25,33 @@
       118.47
     ],
     "KXXRP15M": [
-      1.32397,
-      1.32383,
-      1.32321,
-      1.32319,
-      1.32334,
-      1.32336
+      1.32405,
+      1.32422,
+      1.32413,
+      1.32428,
+      1.32424,
+      1.3245
     ]
   },
   "current_ticker": {
-    "KXBTC15M": "KXBTC15M-26OCT141700-00",
-    "KXETH15M": "KXETH15M-26OCT141700-00",
+    "KXBTC15M": "KXBTC15M-26OCT141715-15",
+    "KXETH15M": "KXETH15M-26OCT141715-15",
     "KXSOL15M": "KXSOL15M-26OCT062315-15",
-    "KXXRP15M": "KXXRP15M-26OCT141700-00"
+    "KXXRP15M": "KXXRP15M-26OCT141715-15"
   },
-  "positions": {
-    "KXXRP15M-26OCT141700-00": {
-      "side": "yes",
-      "entry_price": 51,
-      "objetivo": 76,
-      "corte": 31,
-      "entry_time": "2026-10-14T20:46:02Z",
-      "underlying_entry": 1.32202,
-      "series": "KXXRP15M",
-      "signaled": true
-    },
-    "KXETH15M-26OCT141700-00": {
-      "side": "yes",
-      "entry_price": 40,
-      "objetivo": 65,
-      "corte": 20,
-      "entry_time": "2026-10-14T20:49:21Z",
-      "underlying_entry": 2415.98,
-      "series": "KXETH15M",
-      "signaled": true
-    }
-  },
+  "positions": {},
   "last_ask": {
-    "KXETH15M": {
-      "yes": 0,
-      "no": 100
+    "KXBTC15M": {
+      "yes": 53,
+      "no": 48
     },
     "KXXRP15M": {
-      "yes": 100,
-      "no": 0
+      "yes": 53,
+      "no": 48
     },
-    "KXBTC15M": {
-      "yes": 11,
-      "no": 90
+    "KXETH15M": {
+      "yes": 53,
+      "no": 48
     }
   }
 }
