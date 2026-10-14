@@ -1,15 +1,20 @@
 {
   "underlying_history": {
     "KXBTC15M": [
-      81639.0
+      81623.73,
+      81607.21,
+      81614.04,
+      81611.35,
+      81626.48,
+      81649.37
     ],
     "KXETH15M": [
-      2431.02,
-      2430.98,
-      2430.68,
-      2431.28,
-      2430.63,
-      2430.4
+      2429.54,
+      2428.67,
+      2428.63,
+      2428.8,
+      2429.11,
+      2430.52
     ],
     "KXSOL15M": [
       118.39,
@@ -20,54 +25,44 @@
       118.47
     ],
     "KXXRP15M": [
-      1.3283,
-      1.32853,
-      1.32813,
-      1.32886,
-      1.32834,
-      1.32817
+      1.3271,
+      1.32684,
+      1.3271,
+      1.32765,
+      1.32755,
+      1.32835
     ]
   },
   "current_ticker": {
     "KXBTC15M": "KXBTC15M-26OCT141245-45",
-    "KXETH15M": "KXETH15M-26OCT141230-30",
+    "KXETH15M": "KXETH15M-26OCT141245-45",
     "KXSOL15M": "KXSOL15M-26OCT062315-15",
-    "KXXRP15M": "KXXRP15M-26OCT141230-30"
+    "KXXRP15M": "KXXRP15M-26OCT141245-45"
   },
   "positions": {
-    "KXETH15M-26OCT141230-30": {
-      "side": "no",
-      "entry_price": 51,
-      "objetivo": 76,
-      "corte": 31,
-      "entry_time": "2026-10-14T16:16:46Z",
-      "underlying_entry": 2427.94,
-      "series": "KXETH15M",
-      "signaled": true
-    },
-    "KXXRP15M-26OCT141230-30": {
+    "KXBTC15M-26OCT141245-45": {
       "side": "yes",
-      "entry_price": 53,
-      "objetivo": 78,
-      "corte": 33,
-      "entry_time": "2026-10-14T16:19:44Z",
-      "underlying_entry": 1.32833,
-      "series": "KXXRP15M",
-      "signaled": true
+      "entry_price": 55,
+      "objetivo": 80,
+      "corte": 35,
+      "entry_time": "2026-10-14T16:32:35Z",
+      "underlying_entry": 81649.37,
+      "series": "KXBTC15M",
+      "signaled": false
     }
   },
   "last_ask": {
-    "KXXRP15M": {
-      "yes": 100,
-      "no": 0
+    "KXBTC15M": {
+      "yes": 45,
+      "no": 56
     },
     "KXETH15M": {
-      "yes": 100,
-      "no": 0
+      "yes": 46,
+      "no": 55
     },
-    "KXBTC15M": {
-      "yes": 49,
-      "no": 52
+    "KXXRP15M": {
+      "yes": 38,
+      "no": 63
     }
   }
 }
