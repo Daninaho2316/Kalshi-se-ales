@@ -222,6 +222,21 @@ ENTRY_CONFIRM_READINGS = 4 # cuantas de esas lecturas (las mas recientes) se usa
 POLL_SECONDS = 8           # pausa entre lecturas dentro de una misma corrida (bajado de 12 a 8
                            # para reaccionar mas rapido al corte de perdida)
 
+REVERSO_CONFIRM_READINGS = 2  # Pedido del usuario (2026-10-14): en vez de esperar a que el
+                           # PRECIO DEL CONTRATO caiga los SL_MARGEN_CENTS completos para avisar
+                           # "cortar perdida", vigilar el ACTIVO (igual que para detectar la
+                           # entrada) y avisar "SALIR" apenas se detecte que el activo se esta
+                           # moviendo EN CONTRA de la posicion -- antes de que el precio del
+                           # contrato alcance a caer tanto. Ventana mas corta que
+                           # ENTRY_CONFIRM_READINGS (2 lecturas, ~16s, contra 4 lecturas, ~32s) a
+                           # proposito: para abrir una entrada hace falta confirmar bien porque
+                           # arriesga plata nueva, pero para salir de una posicion YA abierta
+                           # conviene reaccionar mas rapido que confirmar de mas -- el costo de
+                           # una falsa alarma (salir un poco antes de tiempo) es mucho menor que
+                           # el de quedarse esperando el corte de perdida fijo. El corte fijo en
+                           # centavos (SL_MARGEN_CENTS) se deja activo como respaldo, por si esta
+                           # señal de reversion no alcanza a dispararse a tiempo.
+
 # Pausa de ENTRADAS nuevas durante estos ratos del dia (hora NY/Atlanta, la
 # misma zona que usa hora_atlanta()). El usuario reporto que las entradas
 # que salen en estos horarios (apertura de mercados ~9-10:30am, almuerzo
@@ -676,6 +691,33 @@ def send_stop_loss_signal(bot_token, chat_id, *, series, ticker, lado, entrada, 
         print(f"[WARN] No se pudo enviar Telegram (corte de perdida): {e}")
 
 
+def send_reversal_exit_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, roi):
+    # Pedido del usuario (2026-10-14): avisar SALIR en cuanto se detecta que
+    # el ACTIVO se esta moviendo en contra de la posicion, sin esperar a que
+    # el precio del contrato llegue al corte de perdida fijo (SL_MARGEN_CENTS).
+    # Puede dispararse con ganancia, perdida chica, o perdida grande -- el
+    # texto se adapta segun el signo de roi.
+    activo = series.replace("KX", "").replace("15M", "")
+    direccion = "SUBE" if lado == "yes" else "BAJA"
+    etiqueta = "Ganancia" if roi >= 0 else "Pérdida"
+    texto = (
+        f"<b>POSIBLE RETROCESO — {activo}</b>\n"
+        f"Mercado: 15 min\n"
+        f"Lado: {direccion}\n"
+        f"Precio de ENTRADA: <b>{entrada}¢</b>\n"
+        f"Precio de SALIDA (ahora): <b>{actual}¢</b>\n"
+        f"{etiqueta}: <b>{roi*100:.1f}%</b>\n"
+        f"🟡🟡🟡 <b>EL ACTIVO EMPEZÓ A MOVERSE EN CONTRA</b> 🟡🟡🟡\n"
+        f"🚨⚠️🚨 <b>SALIR SALIR SALIR</b> 🚨⚠️🚨\n"
+        f"(se detecto antes de llegar al corte de perdida fijo -- mejor salir ahora)\n"
+        f"Enviado: {hora_atlanta()} (hora Atlanta)"
+    )
+    try:
+        send_message(bot_token, chat_id, texto)
+    except Exception as e:
+        print(f"[WARN] No se pudo enviar Telegram (reversion): {e}")
+
+
 def send_forced_exit_signal(bot_token, chat_id, *, series, ticker, lado, entrada, actual, roi):
     activo = series.replace("KX", "").replace("15M", "")
     direccion = "SUBE" if lado == "yes" else "BAJA"
@@ -947,11 +989,44 @@ def poll_once(client, state, bot_token, chat_id):
                     })
                     position["signaled"] = True
 
+                elif (
+                    len(hist) >= REVERSO_CONFIRM_READINGS
+                    and hist[-REVERSO_CONFIRM_READINGS]
+                    and (
+                        (side == "yes" and (hist[-1] - hist[-REVERSO_CONFIRM_READINGS]) / hist[-REVERSO_CONFIRM_READINGS] <= -MOMENTUM_THRESHOLD.get(series, 0.0005))
+                        or (side == "no" and (hist[-1] - hist[-REVERSO_CONFIRM_READINGS]) / hist[-REVERSO_CONFIRM_READINGS] >= MOMENTUM_THRESHOLD.get(series, 0.0005))
+                    )
+                ):
+                    # Pedido del usuario (2026-10-14): no esperar a que el precio del
+                    # CONTRATO caiga hasta "corte" (SL_MARGEN_CENTS) -- vigilar el
+                    # ACTIVO (la misma logica que detecta la entrada, pero con una
+                    # ventana mas corta, REVERSO_CONFIRM_READINGS) y avisar SALIR en
+                    # cuanto el activo se mueva en contra de la posicion. Puede
+                    # dispararse con la posicion todavia en ganancia (no llego al
+                    # objetivo) o ya en perdida -- lo que importa es que el activo ya
+                    # esta yendo para el otro lado, sin importar en que numero esta
+                    # el contrato ahora mismo.
+                    send_reversal_exit_signal(
+                        bot_token, chat_id,
+                        series=series, ticker=ticker, lado=side,
+                        entrada=entry_price, actual=current_sell, roi=roi,
+                    )
+                    log_row({
+                        "timestamp_utc": now_iso(), "market_ticker": ticker, "series": series,
+                        "evento": "señal_reversion", "lado": side,
+                        "precio_entrada_c": entry_price, "precio_actual_c": current_sell,
+                        "roi_pct": round(roi * 100, 2),
+                        "activo_en_entrada": position["underlying_entry"], "activo_ahora": underlying_price,
+                    })
+                    position["signaled"] = True
+
                 elif current_sell <= corte:
                     # se cayo demasiado -> cortar la perdida aqui, nunca dejarla llegar a -100%.
                     # Antes esto comparaba roi <= -STOP_LOSS_PCT (un %); ahora compara contra
                     # el corte fijo en centavos guardado al abrir la posicion (ver SL_MARGEN_CENTS),
-                    # el MISMO numero que se le mostro al usuario en el mensaje de entrada.
+                    # el MISMO numero que se le mostro al usuario en el mensaje de entrada. Esta
+                    # comparacion se deja como RESPALDO -- normalmente la señal de reversion (ver
+                    # arriba) deberia dispararse primero, antes de que el precio llegue tan lejos.
                     send_stop_loss_signal(
                         bot_token, chat_id,
                         series=series, ticker=ticker, lado=side,
