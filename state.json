@@ -1,20 +1,16 @@
 {
   "underlying_history": {
     "KXBTC15M": [
-      81700.58,
-      81709.93,
-      81690.25,
-      81693.69,
-      81695.07,
-      81707.92
+      81705.95,
+      81714.33,
+      81697.66
     ],
     "KXETH15M": [
-      2418.08,
-      2419.15,
-      2417.68,
-      2418.08,
-      2418.25,
-      2418.8
+      2417.86,
+      2416.08,
+      2420.59,
+      2422.33,
+      2420.74
     ],
     "KXSOL15M": [
       118.39,
@@ -25,54 +21,42 @@
       118.47
     ],
     "KXXRP15M": [
-      1.3214,
-      1.32181,
-      1.32089,
-      1.32084,
-      1.3211,
-      1.32127
+      1.32037,
+      1.32306,
+      1.32331,
+      1.32202
     ]
   },
   "current_ticker": {
-    "KXBTC15M": "KXBTC15M-26OCT141645-45",
-    "KXETH15M": "KXETH15M-26OCT141645-45",
+    "KXBTC15M": "KXBTC15M-26OCT141700-00",
+    "KXETH15M": "KXETH15M-26OCT141700-00",
     "KXSOL15M": "KXSOL15M-26OCT062315-15",
-    "KXXRP15M": "KXXRP15M-26OCT141645-45"
+    "KXXRP15M": "KXXRP15M-26OCT141700-00"
   },
   "positions": {
-    "KXETH15M-26OCT141645-45": {
+    "KXXRP15M-26OCT141700-00": {
       "side": "yes",
-      "entry_price": 42,
-      "objetivo": 67,
-      "corte": 22,
-      "entry_time": "2026-10-14T20:32:52Z",
-      "underlying_entry": 2423.22,
-      "series": "KXETH15M",
-      "signaled": true
-    },
-    "KXXRP15M-26OCT141645-45": {
-      "side": "yes",
-      "entry_price": 54,
-      "objetivo": 79,
-      "corte": 34,
-      "entry_time": "2026-10-14T20:33:05Z",
-      "underlying_entry": 1.32386,
+      "entry_price": 51,
+      "objetivo": 76,
+      "corte": 31,
+      "entry_time": "2026-10-14T20:46:02Z",
+      "underlying_entry": 1.32202,
       "series": "KXXRP15M",
-      "signaled": true
+      "signaled": false
     }
   },
   "last_ask": {
-    "KXBTC15M": {
-      "yes": 1,
-      "no": 99
+    "KXETH15M": {
+      "yes": 52,
+      "no": 49
     },
     "KXXRP15M": {
-      "yes": 1,
-      "no": 100
+      "yes": 41,
+      "no": 61
     },
-    "KXETH15M": {
-      "yes": 0,
-      "no": 100
+    "KXBTC15M": {
+      "yes": 33,
+      "no": 68
     }
   }
 }
