@@ -62,12 +62,13 @@ ENTRADAS_ACTIVAS = {"KXBTC15M"}
 # Umbral minimo de movimiento del activo (fraccion, no %) para marcar una
 # "entrada" — distinto por activo porque cada uno se mueve a su propio ritmo.
 MOMENTUM_THRESHOLD = {
-    "KXBTC15M": 0.0012,  # subido de 0.04% a 0.12% el 2026-10-15 a pedido del usuario -- con
-                          # 0.04% estaba disparando ~50+ señales/dia en BTC solo; el objetivo
-                          # pedido es 8-12 señales/dia de mas calidad. Es un primer ajuste a
-                          # ojo (no hay datos de tick a tick guardados para simular el umbral
-                          # exacto) -- se recalibra con el conteo real de señales de los
-                          # proximos dias.
+    "KXBTC15M": 0.0005,  # 2026-10-15: subido a 0.0012 (0.12%) para bajar de ~50+ señales/dia
+                          # a 8-12, pero fue demasiado -- combinado con POLL_SECONDS bajado de
+                          # 8 a 5 (ventana de confirmacion mas corta, ~15-20s en vez de ~24-32s)
+                          # el bot estuvo 3.5 horas sin dar NINGUNA señal. Se baja a 0.0005 (un
+                          # poco arriba del original 0.0004) como correccion -- se sigue
+                          # ajustando con el conteo real de señales de las proximas horas hasta
+                          # acercarse a las 8-12/dia pedidas.
     "KXETH15M": 0.0006,  # 0.06%
     "KXXRP15M": 0.0012,  # 0.12% (mismo valor que se uso la primera vez que XRP estuvo activo;
                           # XRP se mueve mas brusco que BTC/ETH, por eso el umbral mas alto --
