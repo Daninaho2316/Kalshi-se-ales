@@ -46,11 +46,18 @@ CSV_FIELDS = [
 SERIES_INDEX = {
     "KXBTC15M": "BRTI",
     "KXETH15M": "ETHUSD_RTI",
-    "KXXRP15M": "XRPUSD_RTI",  # REACTIVADO 2026-10-14 a pedido del usuario (antes se habia
-                                # desactivado junto con SOL por demasiadas señales juntas).
-                                # KXSOL15M sigue desactivado -- el usuario solo pidio XRP de
-                                # vuelta.
+    "KXXRP15M": "XRPUSD_RTI",
 }
+
+# Series para las que se permiten ENTRADAS NUEVAS -- 2026-10-14 el usuario
+# pidio dejar solo BTC generando señales de entrada porque ETH y XRP estaban
+# rindiendo mal con la nueva estrategia (30-45c + TP/SL fijo) mientras BTC
+# rendia bien. ETH y XRP se dejan en SERIES_INDEX arriba (no se quitan) para
+# que cualquier posicion ya abierta en esas series siga recibiendo señales de
+# salida (TP / reversion / corte) hasta que cierre -- solo se bloquean
+# entradas NUEVAS en esas dos.
+ENTRADAS_ACTIVAS = {"KXBTC15M"}
+
 
 # Umbral minimo de movimiento del activo (fraccion, no %) para marcar una
 # "entrada" — distinto por activo porque cada uno se mueve a su propio ritmo.
@@ -871,7 +878,7 @@ def poll_once(client, state, bot_token, chat_id):
             # sostenido, no un parpadeo de un segundo -- una entrada real que lleva
             # medio minuto formandose tiene mas chance real de seguir viva cuando el
             # usuario entra a mano, en vez de ya haber desaparecido.
-            if len(hist) >= ENTRY_CONFIRM_READINGS and not too_late and not fuera_ventana_tiempo and not en_pausa_de_entradas():
+            if series in ENTRADAS_ACTIVAS and len(hist) >= ENTRY_CONFIRM_READINGS and not too_late and not fuera_ventana_tiempo and not en_pausa_de_entradas():
                 base = hist[-ENTRY_CONFIRM_READINGS]
                 if base:
                     pct_move = (hist[-1] - base) / base
