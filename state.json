@@ -1,20 +1,12 @@
 {
   "underlying_history": {
     "KXBTC15M": [
-      80833.19,
-      80837.94,
-      80850.82,
-      80862.46,
-      80906.28,
-      80894.15
+      80760.2
     ],
     "KXETH15M": [
-      2357.97,
-      2357.85,
-      2358.17,
-      2358.71,
-      2359.57,
-      2358.76
+      2353.82,
+      2354.36,
+      2354.15
     ],
     "KXSOL15M": [
       118.39,
@@ -25,64 +17,31 @@
       118.47
     ],
     "KXXRP15M": [
-      1.30203,
-      1.30243,
-      1.30257,
-      1.30267,
-      1.3036,
-      1.30371
+      1.30034,
+      1.301,
+      1.30182,
+      1.30176
     ]
   },
   "current_ticker": {
-    "KXBTC15M": "KXBTC15M-26OCT142345-45",
-    "KXETH15M": "KXETH15M-26OCT142345-45",
+    "KXBTC15M": "KXBTC15M-26OCT150000-00",
+    "KXETH15M": "KXETH15M-26OCT150000-00",
     "KXSOL15M": "KXSOL15M-26OCT062315-15",
-    "KXXRP15M": "KXXRP15M-26OCT142345-45"
+    "KXXRP15M": "KXXRP15M-26OCT150000-00"
   },
-  "positions": {
-    "KXBTC15M-26OCT142345-45": {
-      "side": "yes",
-      "entry_price": 52,
-      "objetivo": 77,
-      "corte": 32,
-      "entry_time": "2026-10-15T03:31:34Z",
-      "underlying_entry": 80905.17,
-      "series": "KXBTC15M",
-      "signaled": true
-    },
-    "KXETH15M-26OCT142345-45": {
-      "side": "yes",
-      "entry_price": 51,
-      "objetivo": 76,
-      "corte": 31,
-      "entry_time": "2026-10-15T03:31:34Z",
-      "underlying_entry": 2360.71,
-      "series": "KXETH15M",
-      "signaled": true
-    },
-    "KXXRP15M-26OCT142345-45": {
-      "side": "yes",
-      "entry_price": 54,
-      "objetivo": 79,
-      "corte": 34,
-      "entry_time": "2026-10-15T03:34:10Z",
-      "underlying_entry": 1.30377,
-      "series": "KXXRP15M",
-      "signaled": true
-    }
-  },
+  "positions": {},
   "last_ask": {
+    "KXXRP15M": {
+      "yes": 51,
+      "no": 50
+    },
     "KXETH15M": {
-      "yes": 33,
-      "no": 69
+      "yes": 55,
+      "no": 46
     },
     "KXBTC15M": {
-      "yes": 14,
-      "no": 87
-    },
-    "KXXRP15M": {
-      "yes": 43,
-      "no": 58
+      "yes": 56,
+      "no": 45
     }
   }
 }
