@@ -62,7 +62,12 @@ ENTRADAS_ACTIVAS = {"KXBTC15M"}
 # Umbral minimo de movimiento del activo (fraccion, no %) para marcar una
 # "entrada" — distinto por activo porque cada uno se mueve a su propio ritmo.
 MOMENTUM_THRESHOLD = {
-    "KXBTC15M": 0.0004,  # 0.04%
+    "KXBTC15M": 0.0012,  # subido de 0.04% a 0.12% el 2026-10-15 a pedido del usuario -- con
+                          # 0.04% estaba disparando ~50+ señales/dia en BTC solo; el objetivo
+                          # pedido es 8-12 señales/dia de mas calidad. Es un primer ajuste a
+                          # ojo (no hay datos de tick a tick guardados para simular el umbral
+                          # exacto) -- se recalibra con el conteo real de señales de los
+                          # proximos dias.
     "KXETH15M": 0.0006,  # 0.06%
     "KXXRP15M": 0.0012,  # 0.12% (mismo valor que se uso la primera vez que XRP estuvo activo;
                           # XRP se mueve mas brusco que BTC/ETH, por eso el umbral mas alto --
@@ -232,8 +237,27 @@ ENTRY_CONFIRM_READINGS = 4 # cuantas de esas lecturas (las mas recientes) se usa
                            # corta se avisa un poco antes en el mismo movimiento, con menos
                            # recorrido ya "gastado" para cuando llega la alerta -- a seguir
                            # ajustando segun la diferencia real que vea el usuario.
-POLL_SECONDS = 8           # pausa entre lecturas dentro de una misma corrida (bajado de 12 a 8
-                           # para reaccionar mas rapido al corte de perdida)
+POLL_SECONDS = 5           # pausa entre lecturas dentro de una misma corrida (bajado de 12 a 8,
+                           # y de 8 a 5 el 2026-10-15 a pedido del usuario para recortar la
+                           # latencia entre el movimiento real del precio y el aviso. El bot ya
+                           # no hace ninguna llamada de red extra antes de mandar el Telegram de
+                           # entrada/salida (eso se desactivo antes, ver sesgo_tecnico() mas
+                           # abajo) -- el unico retraso real que queda es este, el tiempo entre
+                           # una lectura de precio y la siguiente.
+
+REVERSION_CONFIRM_TICKS = 3  # Pedido del usuario (2026-10-15): la condicion de reversion
+                              # (el activo moviendose en contra) tiene que mantenerse activa
+                              # 3 lecturas seguidas antes de avisar "SALIR" -- antes se avisaba
+                              # con un solo tick, lo que a veces agarraba un simple parpadeo de
+                              # un segundo, no un retroceso real.
+
+REVERSION_ZONA_MUERTA_MIN_PCT = 6   # Pedido del usuario (2026-10-15): si la perdida flotante
+REVERSION_ZONA_MUERTA_MAX_PCT = 20  # de la posicion esta entre -6% y -20%, NO avisar reversion --
+                                     # se deja que el precio busque el TP normal o el corte fijo.
+                                     # Evita avisar "SALIR" justo en el fondo de un latigazo del
+                                     # mercado que se puede recuperar. Por fuera de ese rango
+                                     # (perdida chica, menos de 6%, o perdida ya grande, mas de
+                                     # 20%) la reversion si puede avisar normal.
 
 REVERSO_CONFIRM_READINGS = 2  # Pedido del usuario (2026-10-14): en vez de esperar a que el
                            # PRECIO DEL CONTRATO caiga los SL_MARGEN_CENTS completos para avisar
@@ -977,6 +1001,31 @@ def poll_once(client, state, bot_token, chat_id):
             if entry_price is not None and current_sell is not None and entry_price > 0:
                 roi = (current_sell - entry_price) / entry_price
 
+                # Cambios pedidos por el usuario (2026-10-15), tras ver que la señal de
+                # reversion estaba saliendo justo en el fondo de latigazos del mercado que
+                # despues se recuperaban:
+                #   1) Zona muerta: con perdida flotante entre -REVERSION_ZONA_MUERTA_MIN_PCT%
+                #      y -REVERSION_ZONA_MUERTA_MAX_PCT%, NO avisar reversion -- se deja que el
+                #      precio busque el TP o el corte fijo en vez de vender ahi.
+                #   2) Confirmacion por 3 lecturas: la condicion de "activo moviendose en
+                #      contra" tiene que repetirse REVERSION_CONFIRM_TICKS veces seguidas (no
+                #      solo una vez) antes de mandar el aviso -- se cuenta con un contador que
+                #      vive en la posicion misma (position["reversion_streak"]).
+                roi_pct_actual = roi * 100
+                en_zona_muerta_reversion = -REVERSION_ZONA_MUERTA_MAX_PCT <= roi_pct_actual <= -REVERSION_ZONA_MUERTA_MIN_PCT
+                momentum_en_contra = (
+                    len(hist) >= REVERSO_CONFIRM_READINGS
+                    and hist[-REVERSO_CONFIRM_READINGS]
+                    and (
+                        (side == "yes" and (hist[-1] - hist[-REVERSO_CONFIRM_READINGS]) / hist[-REVERSO_CONFIRM_READINGS] <= -MOMENTUM_THRESHOLD.get(series, 0.0005))
+                        or (side == "no" and (hist[-1] - hist[-REVERSO_CONFIRM_READINGS]) / hist[-REVERSO_CONFIRM_READINGS] >= MOMENTUM_THRESHOLD.get(series, 0.0005))
+                    )
+                )
+                if momentum_en_contra and not en_zona_muerta_reversion:
+                    position["reversion_streak"] = position.get("reversion_streak", 0) + 1
+                else:
+                    position["reversion_streak"] = 0
+
                 if current_sell >= objetivo and seconds_since(position.get("entry_time")) >= MIN_HOLD_SECONDS:
                     # Antes esto comparaba roi >= ROI_TARGET directamente, SIN el
                     # tope de OBJETIVO_MAX_CENTS -- asi el bot podia esperar un
@@ -1002,23 +1051,16 @@ def poll_once(client, state, bot_token, chat_id):
                     })
                     position["signaled"] = True
 
-                elif (
-                    len(hist) >= REVERSO_CONFIRM_READINGS
-                    and hist[-REVERSO_CONFIRM_READINGS]
-                    and (
-                        (side == "yes" and (hist[-1] - hist[-REVERSO_CONFIRM_READINGS]) / hist[-REVERSO_CONFIRM_READINGS] <= -MOMENTUM_THRESHOLD.get(series, 0.0005))
-                        or (side == "no" and (hist[-1] - hist[-REVERSO_CONFIRM_READINGS]) / hist[-REVERSO_CONFIRM_READINGS] >= MOMENTUM_THRESHOLD.get(series, 0.0005))
-                    )
-                ):
+                elif position["reversion_streak"] >= REVERSION_CONFIRM_TICKS:
                     # Pedido del usuario (2026-10-14): no esperar a que el precio del
                     # CONTRATO caiga hasta "corte" (SL_MARGEN_CENTS) -- vigilar el
                     # ACTIVO (la misma logica que detecta la entrada, pero con una
                     # ventana mas corta, REVERSO_CONFIRM_READINGS) y avisar SALIR en
-                    # cuanto el activo se mueva en contra de la posicion. Puede
-                    # dispararse con la posicion todavia en ganancia (no llego al
-                    # objetivo) o ya en perdida -- lo que importa es que el activo ya
-                    # esta yendo para el otro lado, sin importar en que numero esta
-                    # el contrato ahora mismo.
+                    # cuanto el activo se mueva en contra de la posicion, ya confirmado
+                    # por REVERSION_CONFIRM_TICKS lecturas seguidas y fuera de la zona
+                    # muerta (ver arriba). Puede dispararse con la posicion todavia en
+                    # ganancia (no llego al objetivo) o ya en perdida chica -- lo que
+                    # importa es que el activo ya esta yendo para el otro lado.
                     send_reversal_exit_signal(
                         bot_token, chat_id,
                         series=series, ticker=ticker, lado=side,
@@ -1039,7 +1081,8 @@ def poll_once(client, state, bot_token, chat_id):
                     # el corte fijo en centavos guardado al abrir la posicion (ver SL_MARGEN_CENTS),
                     # el MISMO numero que se le mostro al usuario en el mensaje de entrada. Esta
                     # comparacion se deja como RESPALDO -- normalmente la señal de reversion (ver
-                    # arriba) deberia dispararse primero, antes de que el precio llegue tan lejos.
+                    # arriba) deberia dispararse primero, antes de que el precio llegue tan lejos
+                    # (o la zona muerta la esta deteniendo a proposito, ver arriba).
                     send_stop_loss_signal(
                         bot_token, chat_id,
                         series=series, ticker=ticker, lado=side,
