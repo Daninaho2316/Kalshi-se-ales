@@ -3522,3 +3522,4 @@ timestamp_utc,market_ticker,series,evento,lado,precio_entrada_c,precio_actual_c,
 2026-11-22T23:18:03Z,KXBTC15M-26NOV221830-30,KXBTC15M,señal_corte_perdida,no,41,15,-63.41,60907.69,60988.07,
 2026-11-23T00:00:58Z,KXBTC15M-26NOV221915-15,KXBTC15M,entrada_detectada,no,52,,,61169.85,,842.492576
 2026-11-23T00:01:28Z,KXBTC15M-26NOV221915-15,KXBTC15M,ciclo_cerrado_sin_señal,no,52,,,61169.85,,
+2026-11-23T00:03:27Z,KXBTC15M-26NOV221915-15,KXBTC15M,entrada_detectada,yes,45,,,61101.12,,692.987644
